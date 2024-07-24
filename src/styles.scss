@@ -1,0 +1,43 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* Importing Bootstrap SCSS file. */
+@import 'bootstrap/scss/bootstrap';
+
+$title-color: #017ac6;
+$base-color: #022857;
+$label-color: #212529;
+$akamai-blue: #09c;
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('assets/fonts/Montserrat/Montserrat.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat600';
+    src: url('assets/fonts/Montserrat/Montserrat_600.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat800';
+    src: url('assets/fonts/Montserrat/Montserrat_800.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: "Montserrat" !important;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 5px;
+    color: $base-color;
+    background-color: #FFF;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}

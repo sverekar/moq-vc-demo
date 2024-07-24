@@ -1,0 +1,128 @@
+@import '../styles.scss';
+
+.logo {
+    background-image: url(../assets/logo/akamai-logo.svg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    width: 254px;
+    height: 113px;
+    position: relative;
+    top: -36%;
+    transform: scale(0.7);
+    left: 3%;
+
+}
+
+.title {
+    font-size: 32pt;
+    font-family: "Montserrat800" !important;
+    position: absolute;
+    bottom: 0;
+    color: $title-color;
+}
+
+.help {
+    background-color: $title-color;
+    color: white;
+    position: absolute;
+    left: 0;
+    bottom: 16px;
+}
+
+.help:hover {
+    background-color: #009cde;
+    color: white;
+}
+
+.label {
+    font-family: "Montserrat600" !important;
+    font-size: 18pt;
+    color: $base-color;
+}
+
+.form {
+    display: grid;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.form-label {
+    font-size: small;
+    font-family: "Montserrat600" !important;
+    color: $label-color;
+    align-self: end;
+}
+
+.ecclock {
+    display: inline;
+    text-align: center;
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin: 0;
+    font-size: 1.2em;
+    font-weight: 600;
+    background-color: #eaeafa;
+    background-image: linear-gradient(to bottom,#ededfd 0%,#dddded 100%);
+    line-height: 2.5;
+}
+
+.input-group-prepend {
+    margin-top: 10px !important;
+    margin-right: -1px;
+    display: flex;
+}
+
+.input-group-prepend div > .btn {
+    width: 150px !important;
+    position: relative;
+    z-index: 2;
+    font-size: smaller;
+}
+
+.input-group-prepend div:first-child > .btn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    background-color: $akamai-blue !important;
+    border-color: $akamai-blue !important;
+}
+
+.input-group-prepend > .btn:nth-child(3) {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    background-color: $akamai-blue !important;
+    border-color: $akamai-blue !important;
+    font-size: smaller;
+}
+
+
+.input-group-prepend > input {
+    position: relative;
+    flex: 1 1 0%;
+    min-width: 0;
+    margin-bottom: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    font-size: smaller;
+}
+
+.vl {
+  border: 1px solid #C3C3C3;
+}
+
+.vc-containers {
+  display: grid;
+  border-style: solid;
+  min-height: calc(100vw/6);
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+
+.smaller-input {
+  font-size: 10pt;
+}

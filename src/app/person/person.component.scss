@@ -1,0 +1,18 @@
+.person {
+
+  background-image: linear-gradient( 45deg, transparent 50%, rgba(0, 0, 0, 0.5) 50%);
+
+  margin: 5px 5px 5px 5px;
+
+  background-color: red;
+
+  height: calc(100vw/6);
+
+  text-align: center;
+
+  span {
+    margin: 4px;
+    font-size: 7pt;
+    color: white;
+  }
+}
