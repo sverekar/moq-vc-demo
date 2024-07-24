@@ -31,7 +31,9 @@ export class AppComponent implements OnInit {
   moqAudioQuicMapping: string = 'ObjPerStream';
   fullTrackVideoName: string = this.meNamespace + '/' + this.trackName + '-video'
   fullTrackAudioName: string = this.meNamespace + '/' + this.trackName + '-audio'
-  subscriptionList : Array<{ displayName: string, audio: string, video: string, self: boolean, videoDeviceId?: string, audioDeviceId?: string }> = [];
+  subscriptionList : Array<{ namespace: string, trackName: string, self: boolean}> = [];
+
+  meInfo = {} = {};
 
   // Advanced configuration
   maxInflightVideoRequests: number  = 39;
@@ -122,9 +124,8 @@ export class AppComponent implements OnInit {
 
   subscribePeer(): void {
     this.subscriptionList.push({
-      displayName: this.peerNamespace + '/' + this.peerTrackName,
-      video: this.peerNamespace + '/' + this.peerTrackName + '-video',
-      audio: this.peerNamespace + '/' + this.peerTrackName + '-audio',
+      namespace: this.peerNamespace,
+      trackName: this.trackName,
       self: false
     })
     this.peerNamespace = '';

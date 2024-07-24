@@ -90,8 +90,7 @@
         <select class="input-group-text form-select" [(ngModel)]="videoSources"
           style="font-size: smaller; text-align: left; height: 30px;">
           <option *ngFor="let videoSrc of videoMediaDevices; index as i"
-            [selected]="i === 0"
-            [value]="videoSrc">
+            [ngValue]="videoSrc">
             {{videoSrc.label}} &nbsp; &nbsp; &nbsp;
           </option>
         </select>
@@ -101,8 +100,7 @@
         <select class="input-group-text form-select" [(ngModel)]="videoEncodingOptions"
           style="font-size: smaller; text-align: left; height: 30px;">
           <option *ngFor="let res of videoResolutions; index as i"
-            selected
-            [value]="res">
+            [ngValue]="res">
             {{res.width}}*{{res.height}}&#64;{{res.fps}} &nbsp; &nbsp; &nbsp;
           </option>
         </select>
@@ -123,8 +121,7 @@
         <select class="input-group-text form-select" [(ngModel)]="audioSources"
           style="font-size: smaller; text-align: left; height: 30px;">
           <option *ngFor="let audioSrc of audioMediaDevices; index as i"
-            [selected]="i === 0"
-            [value]="audioSrc">
+            [ngValue]="audioSrc">
             {{audioSrc.label}} &nbsp; &nbsp; &nbsp;
           </option>
         </select>
@@ -170,13 +167,22 @@
       </button>
     </div>
   </div>
+
   <div class="vc-containers">
     <!-- <label *ngIf="subscriptionList.length === 0"  class="form-label" style="font-size: medium; padding-left: 5px; place-self: center;">
       <svg width="24" height="24" fill="currentColor" class="bi bi-people" viewBox="0 0 16 16">
         <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1zm-7.978-1L7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002-.014.002zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4m3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0M6.936 9.28a6 6 0 0 0-1.23-.247A7 7 0 0 0 5 9c-4 0-5 3-5 4q0 1 1 1h4.216A2.24 2.24 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816M4.92 10A5.5 5.5 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275ZM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0m3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4"></path>
       </svg>
     </label> -->
-    <app-person (readyToPublishEvent)="readyToPublish = true" [info]="{displayName: meNamespace + '/' + trackName, video: meNamespace + '/' + trackName + '-video', audio: this.meNamespace + '/' + trackName + '-audio', self: true, videoDeviceId: videoSources?.deviceId, audioDeviceId: audioSources?.deviceId }" [resolution]="videoEncodingOptions"></app-person>
-    <app-person *ngFor="let info of subscriptionList" [info]="info" [resolution]="videoEncodingOptions"></app-person>
+
+    <app-person (readyToPublishEvent)="readyToPublish = true"
+        [namespace]="meNamespace"
+        [self]="true"
+        [trackName]="trackName"
+        [audioDeviceId]="audioSources?.deviceId"
+        [videoDeviceId]="videoSources?.deviceId"
+        [resolution]="videoEncodingOptions">
+    </app-person>
+    <app-person *ngFor="let info of subscriptionList" [namespace]="info.namespace" [self]="false" [trackName]="info.trackName"></app-person>
   </div>
 </div>

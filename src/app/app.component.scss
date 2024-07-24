@@ -119,8 +119,7 @@
 .vc-containers {
   display: grid;
   border-style: solid;
-  min-height: calc(100vw/6);
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
 }
 
 .smaller-input {

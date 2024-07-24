@@ -1,4 +1,4 @@
-<div class="person">
-  <span > {{ info?.displayName }}</span>
-  <video height="100%" width="100%" autoplay="" muted="" #videoplayer></video>
+<div class="person" [hidden]="self && !audioDeviceId">
+  <span > {{ namespace + '/' + trackName }}</span>
+  <video width="100%" autoplay="" [muted]="self" #videoplayer></video>
 </div>
