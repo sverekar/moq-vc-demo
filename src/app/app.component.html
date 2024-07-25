@@ -17,7 +17,7 @@
   <div class="row" style="margin-left: 20%; margin-right: 20%;">
       <div class="form-row">
         <label class="form-label" style="font-size: medium;">MOQT Relay:</label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter MOQT Relay Endpoint" [(ngModel)]="wtServerUrl">
+        <input [disabled]= "!isAnnounce" type="text" class="form-control smaller-input" placeholder="Enter MOQT Relay Endpoint" [(ngModel)]="wtServerUrl">
       </div>
   </div>
 
@@ -27,20 +27,20 @@
       <h4 class="label" style="font-size: 14pt;">Caller Information</h4>
       <div class="form-row">
         <label class="form-label">Your Namespace</label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter your namespace" [(ngModel)]="meNamespace">
+        <input [disabled]= "!isAnnounce" type="text" class="form-control smaller-input" placeholder="Enter your namespace" [(ngModel)]="meNamespace">
       </div>
       <div class="form-row">
         <label class="form-label">Your Track Name</label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="trackName">
+        <input [disabled]= "!isAnnounce"  type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="trackName">
       </div>
       <div class="form-row">
         <label class="form-label">Auth Info</label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter auth information" [(ngModel)]="authInfo">
+        <input [disabled]= "!isAnnounce" type="text" class="form-control smaller-input" placeholder="Enter auth information" [(ngModel)]="authInfo">
       </div>
       <div class="form-row" style="grid-template-columns: 1fr 1fr;">
         <div class="form-row">
           <label class="form-label">Video Packager:</label>
-          <select class="input-group-text form-select" [(ngModel)]="moqVideoQuicMapping"
+          <select [disabled]= "!isAnnounce"  class="input-group-text form-select" [(ngModel)]="moqVideoQuicMapping"
             style="font-size: smaller; text-align: left; height: 35px; width: fit-content;">
             <option selected value="ObjPerStream">Object per stream &nbsp; &nbsp; &nbsp;</option>
             <option value="TrackPerStream">Track per stream &nbsp; &nbsp; &nbsp;</option>
@@ -49,7 +49,7 @@
         </div>
         <div class="form-row" style="padding-left: 5px;">
           <label class="form-label">Audio Packager:</label>
-          <select class="input-group-text form-select" [(ngModel)]="moqAudioQuicMapping"
+          <select [disabled]= "!isAnnounce" class="input-group-text form-select" [(ngModel)]="moqAudioQuicMapping"
             style="font-size: smaller; text-align: left; height: 35px; width: fit-content;">
             <option selected value="ObjPerStream">Object per stream &nbsp; &nbsp; &nbsp;</option>
             <option value="TrackPerStream">Track per stream &nbsp; &nbsp; &nbsp;</option>
@@ -62,11 +62,11 @@
         <label class="form-label">Full track names to ANNOUNCE:</label>
         <div class="form-row">
           <label class="form-label">Video Track: </label>
-          <input type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="fullTrackVideoName">
+          <input readonly type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="fullTrackVideoName">
         </div>
         <div class="form-row">
           <label class="form-label">Audio Track: </label>
-          <input type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="fullTrackAudioName">
+          <input readonly type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="fullTrackAudioName">
         </div>
       </div>
     </div>
@@ -77,17 +77,17 @@
       <div class="form-row" style="grid-template-columns: 1fr 1fr;">
         <div class="form-row" style="grid-template-columns: 200px 1fr">
           <label class="form-label">Max inflight video requests:</label>
-          <input type="number" class="form-control smaller-input" placeholder="Enter max inflight video requests" [(ngModel)]="maxInflightVideoRequests">
+          <input [disabled]= "!isAnnounce" type="number" class="form-control smaller-input" placeholder="Enter max inflight video requests" [(ngModel)]="maxInflightVideoRequests">
         </div>
         <div class="form-row" style="margin-left: 10px; grid-template-columns: 200px 1fr">
           <label class="form-label">Max inflight audio requests:</label>
-          <input type="number" class="form-control smaller-input" placeholder="Enter max inflight audio request" [(ngModel)]="maxInflightAudioRequests">
+          <input [disabled]= "!isAnnounce" type="number" class="form-control smaller-input" placeholder="Enter max inflight audio request" [(ngModel)]="maxInflightAudioRequests">
         </div>
       </div>
       <h6 class="label" style="font-size: 10pt;font-style: italic;">Video Encoding Params</h6>
       <div class="form-row">
         <label class="form-label">Input Sources:</label>
-        <select class="input-group-text form-select" [(ngModel)]="videoSources"
+        <select [disabled]= "!isAnnounce"  class="input-group-text form-select" [(ngModel)]="videoSources"
           style="font-size: smaller; text-align: left; height: 30px;">
           <option *ngFor="let videoSrc of videoMediaDevices; index as i"
             [ngValue]="videoSrc">
@@ -97,7 +97,7 @@
       </div>
       <div class="form-row">
         <label class="form-label">Resolution &#64;fps:</label>
-        <select class="input-group-text form-select" [(ngModel)]="videoEncodingOptions"
+        <select [disabled]= "!isAnnounce"  class="input-group-text form-select" [(ngModel)]="videoEncodingOptions"
           style="font-size: smaller; text-align: left; height: 30px;">
           <option *ngFor="let res of videoResolutions; index as i"
             [ngValue]="res">
@@ -108,17 +108,17 @@
       <div class="form-row" style="grid-template-columns: 1fr 1fr;">
         <div class="form-row">
           <label class="form-label">KeyFrame every (frames):</label>
-          <input type="number" class="form-control smaller-input" placeholder="Enter key frame every frame seconds" [(ngModel)]="videoEncodingKeyFrameEvery">
+          <input [disabled]= "!isAnnounce" type="number" class="form-control smaller-input" placeholder="Enter key frame every frame seconds" [(ngModel)]="videoEncodingKeyFrameEvery">
         </div>
         <div class="form-row" style="padding-left: 5px;">
           <label class="form-label">Bitrate (bps):</label>
-          <input type="text" class="form-control smaller-input" placeholder="Enter your namespace" [(ngModel)]="videoEncodingBitrateBps">
+          <input [disabled]= "!isAnnounce" type="text" class="form-control smaller-input" placeholder="Enter your namespace" [(ngModel)]="videoEncodingBitrateBps">
         </div>
       </div>
       <h6 class="label" style="font-size: 10pt; font-style: italic;">Audio Encoding Params</h6>
       <div class="form-row">
         <label class="form-label">Input Sources:</label>
-        <select class="input-group-text form-select" [(ngModel)]="audioSources"
+        <select [disabled]= "!isAnnounce" class="input-group-text form-select" [(ngModel)]="audioSources"
           style="font-size: smaller; text-align: left; height: 30px;">
           <option *ngFor="let audioSrc of audioMediaDevices; index as i"
             [ngValue]="audioSrc">
@@ -128,7 +128,7 @@
       </div>
       <div class="form-row">
         <label class="form-label">Bitrate (bps):</label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter audio bitrate" [(ngModel)]="audioEncodingBitrateBps">
+        <input [disabled]= "!isAnnounce" type="text" class="form-control smaller-input" placeholder="Enter audio bitrate" [(ngModel)]="audioEncodingBitrateBps">
       </div>
     </div>
   </div>
@@ -159,11 +159,14 @@
         </svg>
         Subscribe
       </button>
-      <button (click)="join()" [disabled]= "!readyToPublish" type="button" class="btn btn-success" style="font-size: 12px; line-height: 1.5; border-radius: 3px;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-headset" viewBox="0 0 16 16">
+      <button (click)="announceOrStop()" [disabled]= "!readyToPublish" type="button" [ngClass]=" isAnnounce ? 'btn btn-success': 'btn btn-danger'" style="font-size: 12px; line-height: 1.5; border-radius: 3px;">
+        <svg *ngIf="isAnnounce" width="16" height="16" fill="currentColor" class="bi bi-headset" viewBox="0 0 16 16">
           <path d="M8 1a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a6 6 0 1 1 12 0v6a2.5 2.5 0 0 1-2.5 2.5H9.366a1 1 0 0 1-.866.5h-1a1 1 0 1 1 0-2h1a1 1 0 0 1 .866.5H11.5A1.5 1.5 0 0 0 13 12h-1a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1V6a5 5 0 0 0-5-5"/>
         </svg>
-        Announce
+        <svg *ngIf="!isAnnounce" width="16" height="16" fill="currentColor" class="bi bi-telephone-minus-fill" viewBox="0 0 16 16">
+          <path fill-rule="evenodd" d="M1.885.511a1.745 1.745 0 0 1 2.61.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.68.68 0 0 0 .178.643l2.457 2.457a.68.68 0 0 0 .644.178l2.189-.547a1.75 1.75 0 0 1 1.494.315l2.306 1.794c.829.645.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.6 18.6 0 0 1-7.01-4.42 18.6 18.6 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877zM10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5"/>
+        </svg>
+        {{ isAnnounce ? 'Announce': 'Stop' }}
       </button>
     </div>
   </div>
@@ -181,7 +184,7 @@
         [trackName]="trackName"
         [audioDeviceId]="audioSources?.deviceId"
         [videoDeviceId]="videoSources?.deviceId"
-        [resolution]="videoEncodingOptions">
+        [resolution]="videoEncodingOptions" #me>
     </app-person>
     <app-person *ngFor="let info of subscriptionList" [namespace]="info.namespace" [self]="false" [trackName]="info.trackName"></app-person>
   </div>

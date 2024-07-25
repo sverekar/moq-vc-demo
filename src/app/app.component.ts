@@ -1,5 +1,5 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
 import { NgbActiveModal, NgbModal, NgbModalRef, NgbModule } from '@ng-bootstrap/ng-bootstrap';
@@ -21,7 +21,7 @@ import { PersonComponent } from './person/person.component';
 })
 export class AppComponent implements OnInit {
 
-  wtServerUrl: string = "https://localhost:4433";
+  wtServerUrl: string = "https://early-hints-prototype.akalab.ca:4433/moq";
   meNamespace: string = crypto.randomUUID();
   trackName: string = 'Main';
   peerNamespace: string = '';
@@ -53,7 +53,11 @@ export class AppComponent implements OnInit {
 
   readyToPublish: boolean = false;
 
+  isAnnounce: boolean = true;
+
   private modalService = inject(NgbModal);
+
+  @ViewChild('me', { static: true }) me!: PersonComponent;
 
   constructor(private ref: ChangeDetectorRef, private location: Location) {
 
@@ -132,8 +136,22 @@ export class AppComponent implements OnInit {
     this.peerTrackName = '';
   }
 
-  join(): void {
+  async announceOrStop(): Promise<void> {
 
+    // trigger person (me) component to announce the frames to relay
+    if (this.isAnnounce) {
+        this.isAnnounce = false;
+        const ans = await this.me.announce(this.wtServerUrl, this.authInfo, this.moqVideoQuicMapping, this.moqAudioQuicMapping,
+        this.maxInflightVideoRequests, this.maxInflightAudioRequests, this.videoEncodingKeyFrameEvery, this.videoEncodingBitrateBps,
+        this.audioEncodingBitrateBps);
+        if (!ans) {
+          this.isAnnounce = true;
+        }
+    } else {
+      this.me.stop();
+      // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
+      setInterval(()=> {this.isAnnounce = true}, 1000);
+    }
   }
 
   private openPermissionModal() {
