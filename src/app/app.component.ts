@@ -31,28 +31,31 @@ export class AppComponent implements OnInit {
   moqAudioQuicMapping: string = 'ObjPerStream';
   fullTrackVideoName: string = this.meNamespace + '/' + this.trackName + '-video'
   fullTrackAudioName: string = this.meNamespace + '/' + this.trackName + '-audio'
-  subscriptionList : Array<{ namespace: string, trackName: string, self: boolean}> = [];
 
-  meInfo = {} = {};
-
-  // Advanced configuration
+  // Video encoding configuration
   maxInflightVideoRequests: number  = 39;
   maxInflightAudioRequests: number  = 60;
-
-
-  videoMediaDevices: Array<{deviceId: string, label: string}> = [];
-  videoResolutions: Array<{width: number, height: number, fps: number, level: number}> = []
   videoSources: { deviceId: string, label: string} | undefined;
-  videoEncodingOptions: { width: number; height: number; fps: number; level: number; } | undefined;
+  videoEncodingOptions: { width: number; height: number; fps: number; level: number; };
   videoEncodingKeyFrameEvery: number = 60;
   videoEncodingBitrateBps: number = 500000;
 
-  audioMediaDevices: Array<{deviceId: string, label: string}> = [];
+  // Audio encoding configuration
   audioSources: {deviceId: string, label: string} | undefined;
   audioEncodingBitrateBps: number = 32000;
 
-  readyToPublish: boolean = false;
+  // Player configuration
+  playerBufferMs: number = 100
+  playerMaxBufferMs: number = 300
+  audioJitterBufferMs: number = 200
+  videoJitterBufferMs: number = 100
 
+  subscriptionList : Array<{ namespace: string, trackName: string, self: boolean}> = [];
+  videoMediaDevices: Array<{deviceId: string, label: string}> = [];
+  videoResolutions: Array<{width: number, height: number, fps: number, level: number}> = [];
+  audioMediaDevices: Array<{deviceId: string, label: string}> = [];
+
+  readyToPublish: boolean = false;
   isAnnounce: boolean = true;
 
   private modalService = inject(NgbModal);
@@ -70,12 +73,13 @@ export class AppComponent implements OnInit {
     this.videoResolutions.push({width: 1280, height: 720, fps: 30, level: 31})
     this.videoResolutions.push({width: 1920, height: 1080, fps: 15, level: 40})
     this.videoResolutions.push({width: 1920, height: 1080, fps: 30, level: 40})
+    this.videoEncodingOptions = this.videoResolutions[0];
     // @ts-ignore
     navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
   }
 
   async ngOnInit(): Promise<void>{
-    this.videoEncodingOptions = this.videoResolutions[0];
+
     const self = this;
     // @ts-ignore
     navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
@@ -141,7 +145,7 @@ export class AppComponent implements OnInit {
     // trigger person (me) component to announce the frames to relay
     if (this.isAnnounce) {
         this.isAnnounce = false;
-        const ans = await this.me.announce(this.wtServerUrl, this.authInfo, this.moqVideoQuicMapping, this.moqAudioQuicMapping,
+        const ans = await this.me.announce(this.moqVideoQuicMapping, this.moqAudioQuicMapping,
         this.maxInflightVideoRequests, this.maxInflightAudioRequests, this.videoEncodingKeyFrameEvery, this.videoEncodingBitrateBps,
         this.audioEncodingBitrateBps);
         if (!ans) {

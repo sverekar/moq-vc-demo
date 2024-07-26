@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild, ViewChildren } from '@angular/core';
-import { TimeBufferChecker } from './common';
+import { JitterBuffer, TimeBufferChecker, VideoRenderBuffer } from './common';
 
 declare const MediaStreamTrackProcessor: any;
 
@@ -15,24 +15,37 @@ declare const MediaStreamTrackProcessor: any;
 })
 export class PersonComponent implements OnInit, OnChanges {
 
+  @Input() url!: string;
+  @Input() auth!: string;
+  @Input() namespace!: string;
+  @Input() self!: boolean;
+  @Input() trackName!: string;
 
-  @Input() namespace: string | undefined;
-  @Input() self: boolean | undefined;
-  @Input() trackName: string | undefined;
+  //Required only for subscribers
+  @Input() playerBufferMs: number | undefined
+  @Input() playerMaxBufferMs: number | undefined
+  @Input() audioJitterBufferMs: number | undefined
+  @Input() videoJitterBufferMs: number | undefined
+
+  // Required only for caller / me
   @Input() videoDeviceId: string | undefined;
   @Input() audioDeviceId: string | undefined;
-  @Input() resolution: { width: number; height: number; fps: number; level: number; } | undefined
+  @Input() resolution!: { width: number; height: number; fps: number; level: number; }
 
   @Output() readyToPublishEvent = new EventEmitter<boolean>();
 
-
   @ViewChild('videoplayer', { static: true }) videoPlayer!: ElementRef;
 
+  // Me variables
   private vStreamWorker!: Worker;
   private aStreamWorker!: Worker;
   private vEncoderWorker!: Worker;
   private aEncoderWorker!: Worker;
   private muxerSenderWorker!: Worker;
+
+  private VERBOSE = true;
+  private AUDIO_STOPPED = 0;
+  private AUDIO_PLAYING = 1;
 
   private videoEncoderConfig = {
     encoderConfig: {
@@ -83,7 +96,51 @@ export class PersonComponent implements OnInit, OnChanges {
     },
   }
 
-  private VERBOSE = true;
+  private downloaderConfig = {
+    urlHostPort: '',
+    urlPath: '',
+    moqTracks: {
+        "audio": {
+            alias: 0,
+            namespace: "vc",
+            name: "-audio",
+            authInfo: "secret"
+        },
+        "video": {
+            alias: 1,
+            namespace: "vc",
+            name: "-video",
+            authInfo: "secret"
+        }
+    },
+  }
+
+  private timingInfo = {
+    muxer: {
+        currentAudioTs: -1,
+        currentVideoTs: -1,
+    },
+    decoder: {
+        currentAudioTs: -1,
+        currentVideoTs: -1,
+    },
+    renderer: {
+        // Estimated audio PTS (assumed PTS is microseconds, and audio and video uses same timescale)
+        currentAudioTS: -1,
+        currentVideoTS: -1,
+    }
+  };
+
+  private buffersInfo = {
+    decoder: {
+        audio: { size: -1, lengthMs: -1, timestampCompensationOffset: -1 },
+        video: { size: -1, lengthMs: -1 },
+    },
+    renderer: {
+        audio: { size: -1, lengthMs: -1, sizeMs: -1, state: this.AUDIO_STOPPED },
+        video: { size: -1, lengthMs: -1, },
+    },
+  }
 
   private videoTimeChecker: any;
   private audioTimeChecker: any;
@@ -91,6 +148,16 @@ export class PersonComponent implements OnInit, OnChanges {
   private currentVideoTs?: number;
   private videoOffsetTS?: number;
   private audioOffsetTS?: number;
+
+  // Subscriber / Guest Variable
+  private videoRendererBuffer!: VideoRenderBuffer;
+  private wtVideoJitterBuffer!: JitterBuffer;
+  private wtAudioJitterBuffer!: JitterBuffer;
+  private latencyAudioChecker!: TimeBufferChecker;
+  private latencyVideoChecker!: TimeBufferChecker;
+  private muxerDownloaderWorker!: Worker;
+  private audioDecoderWorker!: Worker;
+  private videoDecoderWorker!: Worker;
 
   ngOnInit(): void {
 
@@ -102,10 +169,15 @@ export class PersonComponent implements OnInit, OnChanges {
     } else {
       console.warn("crossOriginIsolated NOT enabled, we can NOT use SharedArrayBuffer");
     }
+    // If subscriber, we have all the information required.
+    if (!this.self) {
+      this.loadPlayer();
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
 
+    // If me, we need deviceId for audio and video device, this is async and hence we need to check untill we have one.
     if (this.self) {
       if (changes['audioDeviceId']) {
         this.audioDeviceId = changes['audioDeviceId'].currentValue;
@@ -162,7 +234,7 @@ export class PersonComponent implements OnInit, OnChanges {
     }
   }
 
-  async announce(wtServerUrl: string,  authInfo: string, moqVideoQuicMapping: string, moqAudioQuicMapping: string,
+  async announce(moqVideoQuicMapping: string, moqAudioQuicMapping: string,
     maxInflightVideoRequests: number, maxInflightAudioRequests: number, videoEncodingKeyFrameEvery: number,
     videoEncodingBitrateBps: number, audioEncodingBitrateBps: number
   ): Promise<boolean> {
@@ -228,19 +300,19 @@ export class PersonComponent implements OnInit, OnChanges {
 
       // Transport
       // Get url data
-      this.muxerSenderConfig.urlHostPort = wtServerUrl;
+      this.muxerSenderConfig.urlHostPort = this.url!;
 
       //Get max Inflight requests & auth info
       this.muxerSenderConfig.moqTracks["video"].namespace = this.namespace!;
       this.muxerSenderConfig.moqTracks["video"].name = this.trackName + "-video";
       this.muxerSenderConfig.moqTracks["video"].maxInFlightRequests = maxInflightVideoRequests;
-      this.muxerSenderConfig.moqTracks["video"].authInfo = authInfo;
+      this.muxerSenderConfig.moqTracks["video"].authInfo = this.auth!;
       this.muxerSenderConfig.moqTracks["video"].moqMapping = moqVideoQuicMapping;
 
       this.muxerSenderConfig.moqTracks["audio"].namespace = this.namespace!;
       this.muxerSenderConfig.moqTracks["audio"].name = this.trackName  + "-audio";
       this.muxerSenderConfig.moqTracks["audio"].maxInFlightRequests = maxInflightAudioRequests;
-      this.muxerSenderConfig.moqTracks["audio"].authInfo = authInfo;
+      this.muxerSenderConfig.moqTracks["audio"].authInfo = this.auth!;
       this.muxerSenderConfig.moqTracks["audio"].moqMapping = moqAudioQuicMapping
 
       this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig });
@@ -268,6 +340,7 @@ export class PersonComponent implements OnInit, OnChanges {
     this.clear();
   }
 
+  // ME / ANNOUNCE FUNCTIONS
   private encoderProcessWorkerMessage(e: MessageEvent<any>): void {
 
     // LOGGING
@@ -384,4 +457,160 @@ export class PersonComponent implements OnInit, OnChanges {
     this.audioTimeChecker.Clear();
     this.videoTimeChecker.Clear();
   }
+
+  // SUBCRIBER Functions
+
+  private loadPlayer() {
+
+    this.videoRendererBuffer = new VideoRenderBuffer();
+    this.latencyAudioChecker = new TimeBufferChecker("audio");
+    this.latencyVideoChecker = new TimeBufferChecker("video");
+    this.wtVideoJitterBuffer = new JitterBuffer(this.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+    this.wtAudioJitterBuffer = new JitterBuffer(this.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+
+    this.muxerDownloaderWorker = new Worker("../../assets/js/receiver/moq_demuxer_downloader.js", {type: "module"});
+    this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
+    this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
+
+    this.muxerDownloaderWorker.addEventListener('message', function (e) {
+      this.playerProcessWorkerMessage(e);
+    });
+    this.videoDecoderWorker.addEventListener('message', function (e) {
+      this.playerProcessWorkerMessage(e);
+    });
+    this.audioDecoderWorker.addEventListener('message', function (e) {
+      this.playerProcessWorkerMessage(e);
+    });
+
+    this.downloaderConfig.urlHostPort = this.url;
+    this.downloaderConfig.moqTracks["video"].namespace = this.namespace;
+    this.downloaderConfig.moqTracks["video"].name = this.trackName + "-video";
+    this.downloaderConfig.moqTracks["video"].authInfo = this.auth;
+
+    this.downloaderConfig.moqTracks["audio"].namespace = this.namespace;
+    this.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
+    this.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
+
+    this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig});
+  }
+
+  private async playerProcessWorkerMessage(e: MessageEvent<any>) {
+
+    if ((e.data.type === "debug") && (this.VERBOSE === true)) {
+      console.debug(e.data.data);
+    } else if (e.data.type === "info") {
+      console.log(e.data.data);
+    } else if (e.data.type === "error") {
+      console.error(e.data.data);
+    } else if (e.data.type === "warning") {
+      console.warn(e.data.data);
+    // CHUNKS
+    } else if (e.data.type === "videochunk") {
+      const chunk = e.data.chunk;
+      const seqId = e.data.seqId;
+      const extraData = { captureClkms: e.data.captureClkms, metadata: e.data.metadata }
+      if (this.wtVideoJitterBuffer != null) {
+          const orderedVideoData = this.wtVideoJitterBuffer.AddItem(chunk, seqId, extraData);
+          if (orderedVideoData !== undefined) {
+              // Download is sequential
+              if (orderedVideoData.isDisco) {
+                  console.warn(`VIDEO DISCO detected in seqId: ${orderedVideoData.seqId}`);
+              }
+              if (orderedVideoData.repeatedOrBackwards) {
+                  console.warn(`VIDEO Repeated or backwards chunk, discarding, seqId: ${orderedVideoData.seqId}`);
+              } else {
+                  // Adds pts to wallClk info
+                  this.latencyVideoChecker.AddItem({ ts: orderedVideoData.chunk.timestamp, clkms: orderedVideoData.extraData.captureClkms});
+                  this.timingInfo.muxer.currentVideoTs = orderedVideoData.chunk.timestamp;
+                  this.videoDecoderWorker.postMessage({ type: "videochunk", seqId: orderedVideoData.seqId, chunk: orderedVideoData.chunk, metadata: orderedVideoData.extraData.metadata, isDisco: orderedVideoData.isDisco });
+              }
+          }
+      }
+    } else if (e.data.type === "audiochunk") {
+      const chunk = e.data.chunk;
+      const seqId = e.data.seqId;
+      const extraData = {captureClkms: e.data.captureClkms, metadata: e.data.metadata}
+      if (this.wtAudioJitterBuffer != null) {
+          const orderedAudioData = this.wtAudioJitterBuffer.AddItem(chunk, seqId, extraData);
+          if (orderedAudioData !== undefined) {
+              // Download is sequential
+              if (orderedAudioData.isDisco) {
+                  console.warn(`AUDIO DISCO detected in seqId: ${orderedAudioData.seqId}`);
+              }
+              if (orderedAudioData.repeatedOrBackwards) {
+                  console.warn(`AUDIO Repeated or backwards chunk, discarding, seqId: ${orderedAudioData.seqId}`);
+              } else {
+                  // Adds pts to wallClk info
+                  this.latencyAudioChecker.AddItem({ ts: orderedAudioData.chunk.timestamp, clkms: orderedAudioData.extraData.captureClkms});
+                  this.timingInfo.muxer.currentAudioTs = orderedAudioData.chunk.timestamp;
+                  this.audioDecoderWorker.postMessage({ type: "audiochunk", seqId: orderedAudioData.seqId, chunk: orderedAudioData.chunk, metadata: orderedAudioData.extraData.metadata, isDisco: orderedAudioData.isDisco });
+              }
+          }
+      }
+      // FRAME
+    } else if (e.data.type === "aframe") {
+      const aFrame = e.data.frame;
+
+      // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
+      this.timingInfo.decoder.currentAudioTs = aFrame.timestamp + e.data.timestampCompensationOffset;
+      this.buffersInfo.decoder.audio.timestampCompensationOffset = e.data.timestampCompensationOffset;
+
+      thisbuffersInfo.decoder.audio.size = e.data.queueSize;
+      buffersInfo.decoder.audio.lengthMs = e.data.queueLengthMs;
+
+      playerUpdateDecoderUI('audio', timingInfo.decoder.currentAudioTs, buffersInfo.decoder.audio);
+
+      if (audioCtx == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+          // Initialize the audio when we know sampling freq used in the capture
+          await playerInitializeAudioContext(aFrame.sampleRate);
+      }
+      // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
+      if (audioCtx != null && sourceBufferAudioWorklet != null && audioSharedBuffer === null) {
+          buffersInfo.renderer.audio.sizeMs = Math.max(playerMaxBufferMs, playerBufferMs * 2, 100);
+          const bufferSizeSamples = Math.floor((buffersInfo.renderer.audio.sizeMs * aFrame.sampleRate) / 1000);
+
+          audioSharedBuffer = new CicularAudioSharedBuffer();
+          audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, audioCtx.sampleRate);
+          audioSharedBuffer.SetCallbacks(playerUpdateListDroppedFrame);
+
+          // Set the audio context sampling freq, and pass buffers
+          sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
+      }
+
+      if (audioSharedBuffer != null) {
+          // Uses compensated TS
+          audioSharedBuffer.Add(aFrame, timingInfo.decoder.currentAudioTs);
+
+          if (animFrame === null) {
+              animFrame = requestAnimationFrame(playerAudioTimestamps);
+          }
+      }
+  } else if (e.data.type === "vframe") {
+      const vFrame = e.data.frame;
+      timingInfo.decoder.currentVideoTs = vFrame.timestamp;
+
+      buffersInfo.decoder.video.size = e.data.queueSize;
+      buffersInfo.decoder.video.lengthMs = e.data.queueLengthMs;
+
+      playerUpdateDecoderUI('video', timingInfo.decoder.currentVideoTs, buffersInfo.decoder.video);
+
+      if (videoRendererBuffer != null && videoRendererBuffer.AddItem(vFrame) === false) {
+          console.warn("Dropped video frame because video renderer is full");
+          vFrame.close();
+      }
+      // Downloader STATS
+  } else if (e.data.type === "downloaderstats") {
+      const downloaderData = e.data.data;
+
+      // Dropped
+  } else if (e.data.type === "dropped") {
+      playerUpdateListDroppedFrame(e.data.data);
+
+      // UNKNOWN
+  } else {
+      console.error("unknown message: " + JSON.stringify(e.data));
+  }
+
+  }
+
 }

@@ -2,3 +2,7 @@
   <span > {{ namespace + '/' + trackName }}</span>
   <video width="100%" autoplay="" [muted]="self" #videoplayer></video>
 </div>
+<div class="person" [hidden]="self">
+  <span > {{ namespace + '/' + trackName }}</span>
+  <canvas width="100%" #videoplayer></canvas>
+</div>
