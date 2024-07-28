@@ -1,16 +1,29 @@
 .person {
 
   margin: 5px 5px 5px 5px;
-
   background-color: black;
-
   height: calc(100vw/6);
-
   text-align: center;
 
-  span {
-    margin: 4px;
-    font-size: 7pt;
-    color: white;
+  button {
+    float: right;
+    margin: 3px;
   }
+
+  canvas, video {
+    top: 4%;
+    position: relative;
+  }
+}
+
+.spinner {
+  color: #c3c3c3;
+  position: relative;
+  top: 36%;
+}
+
+.name {
+  padding: 6px;
+  font-size: 7pt;
+  color: white;
 }

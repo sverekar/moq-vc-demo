@@ -36,7 +36,9 @@ export class PersonComponent implements OnInit, OnChanges {
 
   @Output() destroy = new EventEmitter<string>()
 
-  @ViewChild('videoplayer', { static: true }) videoPlayer!: ElementRef;
+  @ViewChild('videoplayer', { static: false }) videoPlayer!: ElementRef;
+
+  videoFramePrinted = false;
 
   // Me variables
   private vStreamWorker!: Worker;
@@ -232,6 +234,7 @@ export class PersonComponent implements OnInit, OnChanges {
          .then(mediaStream => {
            // Connect the stream to the preview video element.
            this.videoPlayer.nativeElement.srcObject = mediaStream;
+           this.videoFramePrinted = true;
          })
          .then(() => {
            this.videoPlayer.nativeElement.srcObject.getTracks().forEach((track: MediaStreamTrack)  => {
@@ -466,7 +469,9 @@ export class PersonComponent implements OnInit, OnChanges {
       }
       this.videoRendererBuffer = null;
       this.destroy.emit(this.namespace + '/' + this.trackName);
+      this.videoFramePrinted = false;
     }
+
   }
 
   // ME / ANNOUNCE FUNCTIONS
@@ -671,6 +676,7 @@ export class PersonComponent implements OnInit, OnChanges {
       }
       // FRAME
     } else if (e.data.type === "aframe") {
+
       const aFrame = e.data.frame;
 
       // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
@@ -799,6 +805,7 @@ export class PersonComponent implements OnInit, OnChanges {
             const compensatedAudioTS = Math.max(0, this.timingInfo.renderer.currentAudioTs - (this.systemAudioLatencyMs * 1000));
             const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
             if (retData.vFrame != null) {
+                this.videoFramePrinted = true;
                 this.playerSetVideoSize(retData.vFrame);
                 this.videoPlayerCtx?.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
                 this.timingInfo.renderer.currentVideoTs = (retData.vFrame as VideoFrame).timestamp;
