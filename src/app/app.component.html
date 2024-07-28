@@ -62,11 +62,11 @@
         <label class="form-label">Full track names to ANNOUNCE:</label>
         <div class="form-row">
           <label class="form-label">Video Track: </label>
-          <input readonly type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="fullTrackVideoName">
+          <input readonly type="text" class="form-control smaller-input" placeholder="Enter your track name" [ngModel]="meNamespace + '/' + trackName + '-video'">
         </div>
         <div class="form-row">
           <label class="form-label">Audio Track: </label>
-          <input readonly type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="fullTrackAudioName">
+          <input readonly type="text" class="form-control smaller-input" placeholder="Enter your track name" [ngModel]="meNamespace + '/' + trackName + '-audio'">
         </div>
       </div>
     </div>
@@ -202,7 +202,8 @@
       </svg>
     </label> -->
     <!-- Me -->
-    <app-person (readyToPublishEvent)="readyToPublish = true"
+    <app-person
+        (readyToPublishEvent)="readyToPublish = true"
         [url]="wtServerUrl"
         [auth]="authInfo"
         [namespace]="meNamespace"
@@ -224,6 +225,7 @@
       [playerMaxBufferMs]="playerMaxBufferMs"
       [audioJitterBufferMs]="audioJitterBufferMs"
       [videoJitterBufferMs]="videoJitterBufferMs"
+      (destroy)="destroySubscriber($event)"
       ></app-person>
   </div>
 </div>

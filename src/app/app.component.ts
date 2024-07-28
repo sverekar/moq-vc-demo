@@ -22,15 +22,13 @@ import { PersonComponent } from './person/person.component';
 export class AppComponent implements OnInit {
 
   wtServerUrl: string = "https://early-hints-prototype.akalab.ca:4433/moq";
-  meNamespace: string = crypto.randomUUID();
+  meNamespace: string = 'Guest' //crypto.randomUUID();
   trackName: string = 'Main';
-  peerNamespace: string = '';
-  peerTrackName: string = '';
+  peerNamespace: string = 'Guest';
+  peerTrackName: string = 'Main';
   authInfo: string = 'secret'
   moqVideoQuicMapping: string = 'ObjPerStream';
   moqAudioQuicMapping: string = 'ObjPerStream';
-  fullTrackVideoName: string = this.meNamespace + '/' + this.trackName + '-video'
-  fullTrackAudioName: string = this.meNamespace + '/' + this.trackName + '-audio'
 
   // Video encoding configuration
   maxInflightVideoRequests: number  = 39;
@@ -50,7 +48,7 @@ export class AppComponent implements OnInit {
   audioJitterBufferMs: number = 200
   videoJitterBufferMs: number = 100
 
-  subscriptionList : Array<{ namespace: string, trackName: string, self: boolean}> = [];
+  subscriptionList : Array<{ id:string, namespace: string, trackName: string, self: boolean}> = [];
   videoMediaDevices: Array<{deviceId: string, label: string}> = [];
   videoResolutions: Array<{width: number, height: number, fps: number, level: number}> = [];
   audioMediaDevices: Array<{deviceId: string, label: string}> = [];
@@ -129,15 +127,15 @@ export class AppComponent implements OnInit {
     }
   }
 
-
   subscribePeer(): void {
     this.subscriptionList.push({
+      id: this.peerNamespace + '/' + this.trackName,
       namespace: this.peerNamespace,
       trackName: this.trackName,
       self: false
     })
     this.peerNamespace = '';
-    this.peerTrackName = '';
+    this.peerTrackName = 'Main';
   }
 
   async announceOrStop(): Promise<void> {
@@ -158,12 +156,8 @@ export class AppComponent implements OnInit {
     }
   }
 
-  private openPermissionModal() {
-    const modalRef = this.modalService.open(NgbdModalConfirm)
-    modalRef.result.then(() => {
-      console.log('modal closed')
-      location.reload();
-    });
+  destroySubscriber(id: string) {
+    this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
   }
 }
 
@@ -184,6 +178,7 @@ export class AppComponent implements OnInit {
 		</div>
 	`,
 })
+
 export class NgbdModalConfirm {
 	modal = inject(NgbActiveModal);
 }

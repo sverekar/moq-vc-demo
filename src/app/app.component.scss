@@ -120,6 +120,7 @@
   display: grid;
   border-style: solid;
   grid-template-columns: 1fr 1fr 1fr 1fr;
+  min-height: calc(100vw/6);
 }
 
 .smaller-input {
