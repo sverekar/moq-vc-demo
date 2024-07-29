@@ -191,6 +191,7 @@ export class PersonComponent implements OnInit, OnChanges {
     if (!this.self) {
       this.loadPlayer();
     }
+
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -245,7 +246,7 @@ export class PersonComponent implements OnInit, OnChanges {
            console.error(`Started video preview. Err: ${err}`);
          })
          .finally(() => {
-           this.createWebWorkers();
+
            this.readyToPublishEvent.emit(true);
          });
        }
@@ -293,6 +294,8 @@ export class PersonComponent implements OnInit, OnChanges {
     }
 
     try {
+
+      this.createWebWorkers();
 
       // Print messages from the worker in the console
       this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
@@ -374,18 +377,23 @@ export class PersonComponent implements OnInit, OnChanges {
       const stopMsg = { type: "stop" };
       if (this.aStreamWorker) {
         this.aStreamWorker.postMessage(stopMsg);
+        this.aStreamWorker.terminate();
       }
       if (this.vStreamWorker) {
         this.vStreamWorker.postMessage(stopMsg);
+        this.vStreamWorker.terminate();
       }
       if (this.vEncoderWorker) {
         this.vEncoderWorker.postMessage(stopMsg);
+        this.vEncoderWorker.terminate();
       }
       if (this.aEncoderWorker) {
         this.aEncoderWorker.postMessage(stopMsg);
+        this.aEncoderWorker.terminate();
       }
       if (this.muxerSenderWorker) {
         this.muxerSenderWorker.postMessage(stopMsg);
+        this.muxerSenderWorker.terminate();
       }
       this.currentAudioTs = undefined;
       this.currentVideoTs = undefined;
@@ -406,12 +414,15 @@ export class PersonComponent implements OnInit, OnChanges {
       const stopMsg = { type: "stop" };
       if (this.muxerDownloaderWorker) {
         this.muxerDownloaderWorker.postMessage(stopMsg);
+        this.muxerDownloaderWorker.terminate();
       }
       if (this.videoDecoderWorker) {
         this.videoDecoderWorker.postMessage(stopMsg);
+        this.videoDecoderWorker.terminate();
       }
       if (this.audioDecoderWorker) {
         this.audioDecoderWorker.postMessage(stopMsg);
+        this.audioDecoderWorker.terminate();
       }
       if (this.audioCtx) {
         await this.audioCtx.close();
@@ -599,6 +610,8 @@ export class PersonComponent implements OnInit, OnChanges {
     self.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
     self.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
+    this.playerAudioTimestamps = this.playerAudioTimestamps.bind(this);
+
     self.muxerDownloaderWorker.addEventListener('message', function (e) {
       self.playerProcessWorkerMessage(e);
     });
@@ -780,6 +793,7 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private playerAudioTimestamps(wcTimestamp: number) {
+    console.log(this)
     const wcInterval = wcTimestamp - this.wcLastRender;
 
     if (this.audioSharedBuffer != null) {
@@ -832,7 +846,6 @@ export class PersonComponent implements OnInit, OnChanges {
             console.log('latencyAudioMs: ',`${currentLatencyMs.toFixed(0)} ms (System: ${this.systemAudioLatencyMs.toFixed(0)} ms)`)
         }
     }
-
     this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
   }
 

@@ -134,7 +134,7 @@ export class AppComponent implements OnInit {
       trackName: this.trackName,
       self: false
     })
-    this.peerNamespace = '';
+    this.peerNamespace = 'Guest';
     this.peerTrackName = 'Main';
   }
 
@@ -152,7 +152,7 @@ export class AppComponent implements OnInit {
     } else {
       this.me.stop();
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
-      setInterval(()=> {this.isAnnounce = true}, 1000);
+      setTimeout(()=> {this.isAnnounce = true}, 1000);
     }
   }
 

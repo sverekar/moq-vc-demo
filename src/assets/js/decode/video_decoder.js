@@ -100,6 +100,7 @@ self.addEventListener('message', async function (e) {
     }
 
     if (workerState !== StateEnum.Running) {
+      console.log(WORKER_PREFIX + ' state: '+ workerState)
       sendMessageToMain(WORKER_PREFIX, 'warning', 'Received video chunk, but NOT running state')
       return
     }

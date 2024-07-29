@@ -1,13 +1,13 @@
 .person {
 
   margin: 5px 5px 5px 5px;
+  padding: 6px;
   background-color: black;
   height: calc(100vw/6);
   text-align: center;
 
   button {
     float: right;
-    margin: 3px;
   }
 
   canvas, video {
@@ -23,7 +23,6 @@
 }
 
 .name {
-  padding: 6px;
   font-size: 7pt;
   color: white;
 }
