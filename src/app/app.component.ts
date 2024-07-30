@@ -21,7 +21,7 @@ import { PersonComponent } from './person/person.component';
 })
 export class AppComponent implements OnInit {
 
-  wtServerUrl: string = "https://early-hints-prototype.akalab.ca:4433/moq";
+  wtServerUrl: string = "https://moq-akamai-relay.akalab.ca:8443/moq";
   meNamespace: string = 'Guest' //crypto.randomUUID();
   trackName: string = 'Main';
   peerNamespace: string = 'Guest';
