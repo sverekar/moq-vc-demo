@@ -139,19 +139,19 @@
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; margin-top: 10px; margin-right: 5px;">
       <div class="player-config">
         <label class="form-label">Min audio player buffer (ms):</label>
-        <input type="number" class="form-control smaller-input" placeholder="Enter player buffer ms" [(ngModel)]="playerBufferMs">
+        <input [disabled]= "subscriptionList.length > 0" type="number" class="form-control smaller-input" placeholder="Enter player buffer ms" [(ngModel)]="playerBufferMs">
       </div>
       <div class="player-config">
         <label class="form-label">Max audio player buffer (ms):</label>
-        <input type="number" class="form-control smaller-input" placeholder="Enter player buffer ms" [(ngModel)]="playerMaxBufferMs">
+        <input [disabled]= "subscriptionList.length > 0" type="number" class="form-control smaller-input" placeholder="Enter player buffer ms" [(ngModel)]="playerMaxBufferMs">
       </div>
       <div class="player-config">
         <label class="form-label">Audio jitter buffer for this player (ms):</label>
-        <input type="number" class="form-control smaller-input" placeholder="Enter audio jitter buffer ms" [(ngModel)]="audioJitterBufferMs">
+        <input [disabled]= "subscriptionList.length > 0" type="number" class="form-control smaller-input" placeholder="Enter audio jitter buffer ms" [(ngModel)]="audioJitterBufferMs">
       </div>
       <div class="player-config">
         <label class="form-label">Video jitter buffer buffer for this player (ms):</label>
-        <input type="number" class="form-control smaller-input" placeholder="Enter your namespace" [(ngModel)]="videoJitterBufferMs">
+        <input [disabled]= "subscriptionList.length > 0" type="number" class="form-control smaller-input" placeholder="Enter your namespace" [(ngModel)]="videoJitterBufferMs">
       </div>
     </div>
   </div>
@@ -202,7 +202,7 @@
     </label> -->
     <!-- Me -->
     <app-person
-        (stats)="stats($event)"
+        (stats)="encoderStats($event)"
         [url]="wtServerUrl"
         [auth]="authInfo"
         [namespace]="meNamespace"
@@ -215,6 +215,7 @@
 
     <!-- Multiple subscribers -->
     <app-person *ngFor="let info of subscriptionList"
+      (stats)="playerStats($event)"
       [url]="wtServerUrl"
       [auth]="authInfo"
       [namespace]="info.namespace"
@@ -230,9 +231,9 @@
 
   <div style="display: grid; grid-template-columns: 1fr 2px 1fr;">
     <!-- Caller Information -->
-    <div class="row" style="margin-top: 10px; margin-right: 5px;">
+    <div style="margin-right: 5px; margin-top: 10px;">
       <h4 class="label" style="font-size: 14pt;">Real Time Debugging Data</h4>
-      <div>
+      <div style="margin-top: 10px;">
         <h4 class="label" style="font-size: 12pt; margin-top: 10px;">Capture (uncompressed domain) Output</h4>
         <div class="form-row-2">
           <label class="form-label">First audio timestamp (ms) </label>
@@ -259,7 +260,7 @@
           <input readonly type="text" class="form-control smaller-input" [ngModel]="((firstCompVts || 0) -  (firstCompAts || 0))">
         </div>
       </div>
-      <div>
+      <div style="margin-top: 10px;">
         <h4 class="label" style="font-size: 12pt;">Encoder Output</h4>
         <div class="form-row-2">
           <label class="form-label">Current audio timestamp (ms) </label>
@@ -290,7 +291,7 @@
           <input readonly type="text" class="form-control smaller-input" [ngModel]="(encodedVideoCompensatedTs || 0) - (encodedAudioCompensatedTs || 0)">
         </div>
       </div>
-      <div>
+      <div style="margin-top: 10px;">
         <h4 class="label" style="font-size: 12pt;">Muxer Sender</h4>
         <div class="form-row-2">
           <label class="form-label">Inflight audio requests </label>
@@ -301,7 +302,7 @@
           <input readonly type="text" class="form-control smaller-input" [ngModel]="uploadStatsVideoInflight">
         </div>
       </div>
-      <div>
+      <div style="margin-top: 10px;">
         <h4 class="label" style="font-size: 12pt;">Dropped Data</h4>
         <div class="form-row-2">
           <label class="form-label">Total dropped audio chunks </label>
@@ -319,9 +320,145 @@
       </div>
     </div>
     <div class="vl"></div>
-    <!-- Encoder input -->
-    <div class="row" style="margin-top: 10px; margin-left: 3px; display: block;">
+    <!-- Player stats -->
+    <div style="margin-left: 5px; margin-top: 10px;">
       <h4 class="label" style="font-size: 14pt;">Player Stats</h4>
+      <div style="margin-top: 10px;">
+        <select #mySelect class="input-group-text form-select" [(ngModel)]="selectedSubscriberStats"
+        style="font-size: smaller; text-align: left; height: 30px; margin-top: 10px;">
+        <option *ngFor="let recipient of subscriberStats | keyvalue" [ngValue]="recipient.value">
+          {{recipient.key}} &nbsp; &nbsp; &nbsp;
+        </option>
+        </select>
+        <h4 class="label" style="font-size: 12pt; margin-top: 5px;">Latency</h4>
+        <label class="form-label" style="font-style: italic; font-family: Arial, Helvetica, sans-serif !important">(only valid if encoder and player clocks are synchronized, or they are the same machine)</label>
+        <div class="form-row-2">
+          <label class="form-label">Audio latency capture to renderer (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.latencyAudioMs">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Video latency capture to renderer (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.latencyVideoMs">
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <h4 class="label" style="font-size: 12pt; margin-top: 10px;">Receiver demuxer</h4>
+        <div class="form-row-2">
+          <label class="form-label">Current received audio timestamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentChunkATS">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Current received video timestamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentChunkVTS">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">V-A diff (ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="(selectedSubscriberStats?.currentChunkVTS || 0) - (selectedSubscriberStats?.currentChunkATS || 0)">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">First audio timestamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.firstChunkAts">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">First video timestamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.firstChunkVts">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">V-A diff (ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="(selectedSubscriberStats?.firstChunkVts || 0) - (selectedSubscriberStats?.firstChunkAts || 0)">
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <h4 class="label" style="font-size: 12pt; margin-top: 10px;">Receiver dejitter</h4>
+        <h4 class="label" style="font-size: 12pt; margin-top: 8px;">Audio</h4>
+        <div class="form-row-2">
+          <label class="form-label">Buffer current max size (ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.audioJitterCurrentMaxSize">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Buffer size </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.audioJitterSize">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Gaps detected </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.audioJitterGaps">
+        </div>
+        <h4 class="label" style="font-size: 12pt; margin-top: 8px;">Video</h4>
+        <div class="form-row-2">
+          <label class="form-label">Buffer current max size (ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.videoJitterCurrentMaxSize">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Buffer size </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.videoJitterSize">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Gaps detected </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.videoJitterGaps">
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <h4 class="label" style="font-size: 12pt; margin-top: 10px;">Decoders</h4>
+        <h4 class="label" style="font-size: 12pt; margin-top: 8px;">Audio</h4>
+        <div class="form-row-2">
+          <label class="form-label">Current frame timestamp compensated (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentFrameATS">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Buffer size (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentDecoABuffer">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Timestamp compensation (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentDecoCompAOffset">
+        </div>
+        <h4 class="label" style="font-size: 12pt; margin-top: 8px;">Video</h4>
+        <div class="form-row-2">
+          <label class="form-label">Current frame timstamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentFrameVTS">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Buffer size (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentDecoVBuffer">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">V-A diff (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="(selectedSubscriberStats?.currentFrameVTS || 0)  - (selectedSubscriberStats?.currentFrameATS || 0)">
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <h4 class="label" style="font-size: 12pt; margin-top: 10px;">Renderers</h4>
+        <h4 class="label" style="font-size: 12pt; margin-top: 8px;">Audio</h4>
+        <div class="form-row-2">
+          <label class="form-label">Current frame timestamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentRendererATS">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Buffer size (ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentRendererABuffer">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Total silence inserted (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentRendererASilenceInserted">
+        </div>
+        <h4 class="label" style="font-size: 12pt; margin-top: 8px;">Video</h4>
+        <div class="form-row-2">
+          <label class="form-label">Current frame timstamp (ms) </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentRendererVTS">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Buffer size (ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentRendererVBuffer">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">Not printed frames </label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="selectedSubscriberStats?.currentRendererVDiscarded">
+        </div>
+        <div class="form-row-2">
+          <label class="form-label">V-A diff(ms)</label>
+          <input readonly type="text" class="form-control smaller-input" [ngModel]="(selectedSubscriberStats?.currentRendererVTS || 0) - (selectedSubscriberStats?.currentRendererATS || 0)">
+        </div>
+      </div>
     </div>
   </div>
 </div>

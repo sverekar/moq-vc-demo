@@ -452,3 +452,31 @@ export class CicularAudioSharedBuffer {
     }
   }
 }
+
+export class SubscriberStats {
+    // Player variables
+    latencyAudioMs?: number | undefined = undefined;
+    latencyVideoMs?: number | undefined = undefined;
+    currentChunkATS?: number | undefined = undefined;
+    currentChunkVTS?: number | undefined = undefined;
+    firstChunkAts?: number | undefined = undefined;
+    firstChunkVts?: number | undefined = undefined;
+    audioJitterCurrentMaxSize?: number | undefined = undefined;
+    audioJitterSize?: number | undefined = undefined;
+    audioJitterGaps?: number | undefined = undefined;
+    videoJitterCurrentMaxSize?: number | undefined = undefined;
+    videoJitterSize?: number | undefined = undefined;
+    videoJitterGaps?: number | undefined = undefined;
+    currentFrameATS?: number | undefined = undefined;
+    currentDecoABuffer?: number | undefined = undefined;
+    currentDecoCompAOffset?: number | undefined = undefined;
+    currentFrameVTS?: number | undefined = undefined;
+    currentDecoVBuffer?: number | undefined = undefined;
+    currentRendererATS?: number | undefined = undefined;
+    currentRendererABuffer?: number | undefined = undefined;
+    currentRendererASilenceInserted?: number | undefined = undefined;
+    currentRendererVTS?: number | undefined = undefined;
+    currentRendererVBuffer?: number | undefined = undefined;
+    currentRendererVDiscarded?: number | undefined = undefined;
+    droppedFramesData?: Array<string> = [];
+}

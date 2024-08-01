@@ -5,6 +5,7 @@ import { RouterOutlet } from '@angular/router';
 import { NgbActiveModal, NgbModal, NgbModalRef, NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { from } from 'rxjs';
 import { PersonComponent } from './person/person.component';
+import { SubscriberStats } from './person/common';
 
 @Component({
   selector: 'app-root',
@@ -65,6 +66,10 @@ export class AppComponent implements OnInit {
   firstCompAts: number | undefined = undefined;
   firstCompVts: number | undefined = undefined;
   encoderDroppedFrames: string[] = [];
+
+  //Debugging variables
+  subscriberStats: Map<string, SubscriberStats> = new Map();
+  selectedSubscriberStats: SubscriberStats | undefined = undefined;
 
   subscriptionList : Array<{ id:string, namespace: string, trackName: string, self: boolean}> = [];
   videoMediaDevices: Array<{deviceId: string, label: string}> = [];
@@ -184,6 +189,7 @@ export class AppComponent implements OnInit {
       this.firstCompAts = undefined;
       this.firstCompVts = undefined;
       this.encoderDroppedFrames = [];
+      this.subscriberStats.clear();
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
       setTimeout(()=> {this.isAnnounce = true}, 1000);
     }
@@ -191,9 +197,15 @@ export class AppComponent implements OnInit {
 
   destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
+    if (this.selectedSubscriberStats === this.subscriberStats.get(id)) {
+      this.selectedSubscriberStats = undefined
+    }
+    this.subscriberStats.delete(id);
+
   }
 
-  stats(data: any) {
+  encoderStats(data: any) {
+
     if ('publish' in data) {
       this.readyToPublish = data['publish'];
     }
@@ -248,8 +260,98 @@ export class AppComponent implements OnInit {
     }
   }
 
-  trackByFn(index: number, item: string) {
-    return index;
+  playerStats(data: any): void {
+    if ('id' in data) {
+      let stats = this.subscriberStats.get(data['id']);
+      if (!stats) {
+        stats = {};
+      }
+      stats = this.updatePlayerStats(stats, data);
+      this.subscriberStats.set(data['id'], stats);
+      return;
+    }
+    console.warn('Found player stats without id: ', data)
+  }
+
+  private updatePlayerStats(stats: SubscriberStats, data: any) {
+
+    if ('latencyAudioMs' in data) {
+      stats.latencyAudioMs = data['latencyAudioMs'];
+    }
+    if ('latencyVideoMs' in data) {
+      stats.latencyVideoMs = data['latencyVideoMs'];
+    }
+    if ('currentChunkATS' in data) {
+      stats.currentChunkATS = data['currentChunkATS'];
+    }
+    if ('currentChunkVTS' in data) {
+      stats.currentChunkVTS = data['currentChunkVTS'];
+    }
+    if ('firstChunkAts' in data) {
+      stats.firstChunkAts = data['firstChunkAts'];
+    }
+    if ('firstChunkVts' in data) {
+      stats.firstChunkVts = data['firstChunkVts'];
+    }
+    if ('audioJitterCurrentMaxSize' in data) {
+      stats.audioJitterCurrentMaxSize = data['audioJitterCurrentMaxSize'];
+    }
+    if ('audioJitterSize' in data) {
+      stats.audioJitterSize = data['audioJitterSize'];
+    }
+    if ('audioJitterGaps' in data) {
+      stats.audioJitterGaps = data['audioJitterGaps'];
+    }
+    if ('videoJitterCurrentMaxSize' in data) {
+      stats.videoJitterCurrentMaxSize = data['videoJitterCurrentMaxSize'];
+    }
+    if ('videoJitterSize' in data) {
+      stats.videoJitterSize = data['videoJitterSize'];
+    }
+    if ('videoJitterGaps' in data) {
+      stats.videoJitterGaps = data['videoJitterGaps'];
+    }
+    if ('currentFrameATS' in data) {
+      stats.currentFrameATS = data['currentFrameATS'];
+    }
+    if ('currentDecoABuffer' in data) {
+      stats.currentDecoABuffer = data['currentDecoABuffer'];
+    }
+    if ('currentDecoCompAOffset' in data) {
+      stats.currentDecoCompAOffset = data['currentDecoCompAOffset'];
+    }
+    if ('currentFrameVTS' in data) {
+      stats.currentFrameVTS = data['currentFrameVTS'];
+    }
+    if ('currentDecoVBuffer' in data) {
+      stats.currentDecoVBuffer = data['currentDecoVBuffer'];
+    }
+    if ('currentRendererATS' in data) {
+      stats.currentRendererATS = data['currentRendererATS'];
+    }
+    if ('currentRendererABuffer' in data) {
+      stats.currentRendererABuffer = data['currentRendererABuffer'];
+    }
+    if ('currentRendererASilenceInserted' in data) {
+      stats.currentRendererASilenceInserted = data['currentRendererASilenceInserted'];
+    }
+    if ('currentRendererVTS' in data) {
+      stats.currentRendererVTS = data['currentRendererVTS'];
+    }
+    if ('currentRendererVBuffer' in data) {
+      stats.currentRendererVBuffer = data['currentRendererVBuffer'];
+    }
+    if ('currentRendererVDiscarded' in data) {
+      stats.currentRendererVDiscarded = data['currentRendererVDiscarded'];
+    }
+    if ('droppedFramesData' in data) {
+      if (stats.droppedFramesData) {
+        stats.droppedFramesData?.push(data['currentRendererVDiscarded']);
+      } else {
+        stats.droppedFramesData = [data['currentRendererVDiscarded']]
+      }
+    }
+    return stats;
   }
 
 }
