@@ -32,7 +32,7 @@ export class PersonComponent implements OnInit, OnChanges {
   @Input() audioDeviceId: string | undefined;
   @Input() resolution!: { width: number; height: number; fps: number; level: number; }
 
-  @Output() readyToPublishEvent = new EventEmitter<boolean>();
+  @Output() stats = new EventEmitter<any>();
 
   @Output() destroy = new EventEmitter<string>()
 
@@ -177,6 +177,8 @@ export class PersonComponent implements OnInit, OnChanges {
   private wcLastRender:number = 0;
   private videoPlayerCtx:CanvasRenderingContext2D | null = null;
 
+  private statsHelper: any = {};
+
   ngOnInit(): void {
 
     this.audioTimeChecker = new TimeBufferChecker("audio");
@@ -246,8 +248,7 @@ export class PersonComponent implements OnInit, OnChanges {
            console.error(`Started video preview. Err: ${err}`);
          })
          .finally(() => {
-
-           this.readyToPublishEvent.emit(true);
+           this.stats.emit({'publish': true});
          });
        }
       }
@@ -305,15 +306,12 @@ export class PersonComponent implements OnInit, OnChanges {
         this.encoderProcessWorkerMessage(e);
       });
       this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        console.log('Message from vEncoderWorker: ', e)
         this.encoderProcessWorkerMessage(e);
       });
       this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        console.log('Message from aEncoderWorker: ', e)
         this.encoderProcessWorkerMessage(e);
       });
       this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        console.log('Message from muxerSenderWorker: ', e)
         this.encoderProcessWorkerMessage(e);
       });
 
@@ -405,6 +403,7 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.videoTimeChecker !== null) {
         this.videoTimeChecker.Clear();
       }
+      this.statsHelper = {};
     } else {
       // Clear subsbcriber variables
       if (this.animFrame != null) {
@@ -482,7 +481,6 @@ export class PersonComponent implements OnInit, OnChanges {
       this.destroy.emit(this.namespace + '/' + this.trackName);
       this.videoFramePrinted = false;
     }
-
   }
 
   // ME / ANNOUNCE FUNCTIONS
@@ -507,8 +505,16 @@ export class PersonComponent implements OnInit, OnChanges {
               this.videoOffsetTS = -vFrame.timestamp; // Comp video starts 0
           } else {
               // Adjust video offset to last audio seen (most probable case since audio startsup faster)
-              this.videoOffsetTS = -vFrame.timestamp + this.currentAudioTs! + this.audioOffsetTS; // Comp video starts last audio seen
+              this.videoOffsetTS = -vFrame.timestamp + (this.currentAudioTs || 0) + (this.audioOffsetTS || 0); // Comp video starts last audio seen
           }
+          const firstVts = (vFrame.timestamp / 1000).toFixed(3);
+          const firstCompVts = ((vFrame.timestamp + this.videoOffsetTS)/ 1000).toFixed(3);
+
+          this.stats.emit({
+            'firstVts': firstVts,
+            'firstCompVts': firstCompVts,
+          });
+
         } else {
           estimatedDuration = vFrame.timestamp - this.currentVideoTs;
         }
@@ -527,6 +533,13 @@ export class PersonComponent implements OnInit, OnChanges {
                 // Adjust audio offset to last video seen
                 this.audioOffsetTS = -aFrame.timestamp + this.currentVideoTs! + this.videoOffsetTS; // Comp audio starts last video seen
             }
+            const firstAts = (aFrame.timestamp / 1000).toFixed(3);
+            const firstCompAts = ((aFrame.timestamp + this.audioOffsetTS)/ 1000).toFixed(3);
+
+            this.stats.emit({
+              'firstAts': firstAts,
+              'firstCompAts': firstCompAts,
+            });
         } else {
             estimatedDuration = aFrame.timestamp - this.currentAudioTs;
         }
@@ -540,8 +553,19 @@ export class PersonComponent implements OnInit, OnChanges {
 
       // As of now, just logging the dropped frame.
       const droppedFrameData = e.data.data;
-      console.log("Dropped Event: ", droppedFrameData)
-
+      const mediaType = droppedFrameData.mediaType;
+      const str = new Date(droppedFrameData.clkms).toISOString() + " (" + droppedFrameData.seqId + ")(" + droppedFrameData.ts + ") " + droppedFrameData.msg;
+      if (mediaType === 'video') {
+        this.stats.emit({
+          'videoChunkDropped': true,
+          'chunkDroppedMsg': str
+        })
+      } else  {
+        this.stats.emit({
+          'audioChunkDropped': true,
+          'chunkDroppedMsg': str
+        })
+      }
     // CHUNKS from encoders
     } else if (e.data.type === "vchunk") {
         const chunk = e.data.chunk;
@@ -550,6 +574,16 @@ export class PersonComponent implements OnInit, OnChanges {
         const itemTsClk = this.videoTimeChecker.GetItemByTs(chunk.timestamp);
         if (!itemTsClk.valid) {
             console.warn(`Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${seqId}`);
+        } else {
+          const encodedVideoLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
+          const encodedVideoTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
+          const encodedVideoCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
+
+          this.stats.emit({
+            'encodedVideoTs': encodedVideoTs,
+            'encodedVideoCompensatedTs': encodedVideoCompensatedTs,
+            'encodedVideoLatencyMs': encodedVideoLatencyMs
+          });
         }
         // Send the encoded video chunk obtained from v_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "video", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, estimatedDuration: itemTsClk.estimatedDuration, seqId: seqId, chunk: chunk, metadata: metadata });
@@ -561,16 +595,27 @@ export class PersonComponent implements OnInit, OnChanges {
         const itemTsClk = this.audioTimeChecker.GetItemByTs(chunk.timestamp);
         if (!itemTsClk.valid) {
             console.info(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
+        } else {
+          const encodedAudioLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
+          const encodedAudioTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
+          const encodedAudioCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
+
+          this.stats.emit({
+            'encodedAudioTs':encodedAudioTs,
+            'encodedAudioCompensatedTs': encodedAudioCompensatedTs,
+            'encodedAudioLatencyMs': encodedAudioLatencyMs
+          });
         }
           // Send the encoded audio chunk obtained from a_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "audio", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, seqId: seqId, chunk: chunk, metadata: metadata });
 
     // CHUNKS STATS
     } else if (e.data.type === "sendstats") {
-
-      // Stats from moq_sender.js
-      console.log("sendstats", this.currentAudioTs, this.currentVideoTs, e.data);
-
+      const inFlightReq = e.data.inFlightReq;
+      this.stats.emit({
+        'uploadStatsAudioInflight': `${inFlightReq['audio']} (${this.returnMax('inFlightAudioReqNum', inFlightReq["audio"])})`,
+        'uploadStatsVideoInflight': `${inFlightReq['video']} (${this.returnMax('inFlightVideoReqNum', inFlightReq["video"])})`
+      })
     // UNKNOWN
     } else {
         console.error("unknown message: " + e.data);
@@ -592,6 +637,20 @@ export class PersonComponent implements OnInit, OnChanges {
 
     // Create send worker
     this.muxerSenderWorker = new Worker("../../assets/js/sender/moq_sender.js", { type: "module" });
+  }
+
+  private returnMax(varName:any, val: any): any {
+    let ret = val;
+    if (!(varName in this.statsHelper)) {
+        this.statsHelper[varName] = val;
+    } else {
+        if (this.statsHelper[varName] > val) {
+            ret = this.statsHelper[varName];
+        } else {
+            this.statsHelper[varName] = val;
+        }
+    }
+    return ret;
   }
 
   // SUBCRIBER Functions
@@ -793,7 +852,7 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private playerAudioTimestamps(wcTimestamp: number) {
-    console.log(this)
+
     const wcInterval = wcTimestamp - this.wcLastRender;
 
     if (this.audioSharedBuffer != null) {

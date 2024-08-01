@@ -132,3 +132,10 @@
   display: grid;
   margin-bottom: 5px;
 }
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 300px 200px;
+  align-items: center;
+  margin-bottom: 5px;
+}

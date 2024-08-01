@@ -21,6 +21,12 @@ let workerState = StateEnum.Created
 
 let isSendingStats = true
 
+let keepAlivesEveryMs = 0
+let keepAliveInterval = null
+let keepAliveNameSpace = ""
+
+let lastObjectSentMs = 0
+
 let tracks = {}
 // Example
 /* moqTracks: {
@@ -37,7 +43,7 @@ let tracks = {}
         isHipri: false,
         authInfo: "secret",
         moqMapping: "ObjStream",
-    }
+    },
 } */
 
 // Inflight req abort signal
@@ -62,10 +68,14 @@ self.addEventListener('message', async function (e) {
 
     // Abort and wait for all inflight requests
     try {
+      if (keepAliveInterval != null) {
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null
+      }
       //TODO JOC finish abort controller
       abortController.abort()
       await moqCloseWrttingStreams(moqt)
-
+      
       await unAnnounceTracks(moqt)
       await moqClose(moqt)
     } catch (err) {
@@ -94,11 +104,15 @@ self.addEventListener('message', async function (e) {
     if ('moqTracks' in e.data.muxerSenderConfig) {
       tracks = e.data.muxerSenderConfig.moqTracks
     }
+    if ('keepAlivesEveryMs' in e.data.muxerSenderConfig) {
+      keepAlivesEveryMs = e.data.muxerSenderConfig.keepAlivesEveryMs
+    }
 
     if (urlHostPortEp === '') {
       sendMessageToMain(WORKER_PREFIX, 'error', 'Empty host port')
       return
     }
+
     const errTrackStr = checkTrackData()
     if (errTrackStr !== '') {
       sendMessageToMain(WORKER_PREFIX, 'error', errTrackStr)
@@ -145,6 +159,12 @@ self.addEventListener('message', async function (e) {
             sendMessageToMain(WORKER_PREFIX, 'info', `Exited receiving subscription loop in control stream. Err: ${JSON.stringify(err)}`)
           }
         })
+
+      if (keepAlivesEveryMs > 0) {
+        keepAliveNameSpace = Math.floor(Math.random() * 10000000) + "-keepAlive"
+        sendMessageToMain(WORKER_PREFIX, 'info', `Starting keep alive every ${keepAlivesEveryMs}ms, ns: ${keepAliveNameSpace}`)
+        keepAliveInterval = setInterval(sendKeepAlive, keepAlivesEveryMs, moqt.controlWriter);
+      }
     } catch (err) {
       if (MOQT_DEV_MODE) {throw err}
       sendMessageToMain(WORKER_PREFIX, 'error', `Initializing MOQ. Err: ${JSON.stringify(err)}`)
@@ -204,6 +224,13 @@ self.addEventListener('message', async function (e) {
   }
 })
 
+async function sendKeepAlive(controlWriter) {
+  if((Date.now() - lastObjectSentMs) > keepAlivesEveryMs) {
+    await moqSendAnnounce(controlWriter, keepAliveNameSpace, "")
+    sendMessageToMain(WORKER_PREFIX, 'info', `Sent keep alive (announce) for ns: ${keepAliveNameSpace}`)
+  }
+}
+
 async function startLoopSubscriptionsLoop (controlReader, controlWriter) {
   sendMessageToMain(WORKER_PREFIX, 'info', 'Started subscription loop')
 
@@ -244,9 +271,9 @@ async function startLoopSubscriptionsLoop (controlReader, controlWriter) {
       }
       // Add subscribe
       track.subscribers.push(subscribe)
-
+  
       sendMessageToMain(WORKER_PREFIX, 'info', `New subscriber for track ${subscribe.trackAlias}(${subscribe.namespace}/${subscribe.trackName}). Current num subscriber: ${track.subscribers.length}. AuthInfo MATCHED!`)
-
+      
       const lastSent = getLastSentFromTrackAlias(subscribe.trackAlias)
       await moqSendSubscribeOk(controlWriter, subscribe.subscribeId, 0, lastSent.group, lastSent.obj)
       sendMessageToMain(WORKER_PREFIX, 'info', `Sent SUBSCRIBE_OK for subscribeId: ${subscribe.subscribeId}, last: ${lastSent.group}/${lastSent.obj}`)
@@ -260,12 +287,15 @@ async function startLoopSubscriptionsLoop (controlReader, controlWriter) {
       } else {
         sendMessageToMain(WORKER_PREFIX, 'error', `Removing subscriber. Could not find subscribeId: ${subscribe.subscribeId}`)
       }
-
+      
       const lastSent = getLastSentFromTrackAlias(subscribe.trackAlias)
       const errorCode = MOQ_SUBSCRIPTION_DONE_ENDED
       const errReason = "Subscription Ended, received unSubscribe"
       await moqSendSubscribeDone(controlWriter, subscribe.subscribeId, errorCode, errReason, lastSent.group, lastSent.obj)
       sendMessageToMain(WORKER_PREFIX, 'info', `Sent SUBSCRIBE_DONE for subscribeId: ${subscribe.subscribeId}, err: ${errorCode}(${errReason}), last: ${lastSent.group}/${lastSent.obj}`)
+    }
+    else if (moqMsg.type === MOQ_MESSAGE_ANNOUNCE_OK && moqMsg.data.namespace === keepAliveNameSpace) {
+      // This is the keep alive answer
     }
     else {
       sendMessageToMain(WORKER_PREFIX, 'warning', `Unexpected message (type ${moqMsg.type} received, ignoring`)
@@ -289,7 +319,7 @@ async function createRequest (chunkData, subscribeId, trackAlias, moqMapping) {
   if (chunkData.mediaType === 'data') {
     // Simple
     packet = new RawPackager()
-    packet.SetData(chunkData.mediaType, 'key', chunkData.seqId, chunkData.chunk)
+    packet.SetData('key', chunkData.seqId, chunkData.chunk)
   } else {
     // Media LOC packager
     packet = new LocPackager()
@@ -297,15 +327,17 @@ async function createRequest (chunkData, subscribeId, trackAlias, moqMapping) {
     const chunkDataBuffer = new Uint8Array(chunkData.chunk.byteLength)
     chunkData.chunk.copyTo(chunkDataBuffer)
 
-    packet.SetData(chunkData.mediaType, chunkData.compensatedTs, chunkData.estimatedDuration, chunkData.chunk.type, chunkData.seqId, chunkData.firstFrameClkms, chunkData.metadata, chunkDataBuffer)
+    packet.SetData(chunkData.compensatedTs, chunkData.estimatedDuration, chunkData.chunk.type, chunkData.seqId, chunkData.firstFrameClkms, chunkData.metadata, chunkDataBuffer)
   }
-  return createSendPromise(packet, subscribeId, trackAlias, moqMapping)
+  const isHiPri = (chunkData.mediaType === 'audio')
+
+  return createSendPromise(packet, subscribeId, trackAlias, moqMapping, isHiPri)
 }
 
-async function createSendPromise (packet, subscribeId, trackAlias, moqMapping) {
+async function createSendPromise (packet, subscribeId, trackAlias, moqMapping, isHiPri) {
   let isFirstObject = false
   if (moqt.wt === null) {
-    return { dropped: true, message: `Dropped Object for subscribeId: ${subscribeId}, trackAlias: ${trackAlias}, because transport is NOT open. For ${packet.GetData().mediaType} - ${packet.GetData().seqId}` }
+    return { dropped: true, message: `Dropped Object for subscribeId: ${subscribeId}, trackAlias: ${trackAlias}, because transport is NOT open. SeqId: ${packet.GetData().seqId}` }
   }
   if (!(trackAlias in moqPublisherState)) {
     if (packet.GetData().chunkType === 'delta') {
@@ -315,8 +347,8 @@ async function createSendPromise (packet, subscribeId, trackAlias, moqMapping) {
     isFirstObject = true
   }
 
-  const sendOrder = moqCalculateSendOrder(packet)
-
+  const sendOrder = moqCalculateSendOrder(packet, isHiPri)
+  
   // Group sequence, Using it as a joining point
   if (packet.GetData().chunkType !== 'delta') {
     if (!isFirstObject) {
@@ -342,7 +374,7 @@ async function createSendPromise (packet, subscribeId, trackAlias, moqMapping) {
     moqPublisherState[trackAlias].currentObjectSeq++
   } else if (moqMapping === MOQ_MAPPING_OBJECT_PER_STREAM) {
     // Get stream writer
-    const writterId = createMultiObjectHash(packet.GetData().mediaType, 'obj', trackAlias, groupSeq, objSeq)
+    const writterId = createMultiObjectHash('obj', trackAlias, groupSeq, objSeq)
     const uniStream = await moqt.wt.createUnidirectionalStream({ options: { sendOrder } })
     const uniStreamWritter = uniStream.getWriter()
 
@@ -361,12 +393,12 @@ async function createSendPromise (packet, subscribeId, trackAlias, moqMapping) {
     let writterId = undefined
     let lastWriteId = undefined
     if (moqMapping === MOQ_MAPPING_TRACK_PER_STREAM) {
-      writterId = createMultiObjectHash(packet.GetData().mediaType, 'track', trackAlias)
+      writterId = createMultiObjectHash('track', trackAlias)
     } else {
-      writterId = createMultiObjectHash(packet.GetData().mediaType, 'group', trackAlias, groupSeq)
-      lastWriteId = createMultiObjectHash(packet.GetData().mediaType, 'group', trackAlias, groupSeq - 1)
+      writterId = createMultiObjectHash('group', trackAlias, groupSeq)
+      lastWriteId = createMultiObjectHash('group', trackAlias, groupSeq - 1)
     }
-
+    
     let uniStreamWritter = null
     if (moqt.multiObjectWritter[writterId] === null || moqt.multiObjectWritter[writterId] === undefined) {
       // Send order will be the sendorder of the 1st obj in that track / group
@@ -398,13 +430,14 @@ async function createSendPromise (packet, subscribeId, trackAlias, moqMapping) {
     } else {
       moqSendGroupPerStreamToWriter(uniStreamWritter, objSeq, packet.ToBytes())
     }
-
-    moqPublisherState[trackAlias].currentObjectSeq++
+    
+    moqPublisherState[trackAlias].currentObjectSeq++    
   }
   else {
     throw new Error(`Unexpected MOQ - QUIC mapping, received ${moqMapping} - ${MOQ_MAPPING_OBJECT_PER_STREAM}`)
   }
 
+  lastObjectSentMs = Date.now()
   if (p instanceof Promise) {
     p.finally(() => {
       if (moqt.multiObjectWritter[p.writteId] != undefined) {
@@ -415,8 +448,8 @@ async function createSendPromise (packet, subscribeId, trackAlias, moqMapping) {
   }
 }
 
-function createMultiObjectHash(mediaType, mappingType, trackAlias, groupId, objId) {
-  return `${mediaType}-${mappingType}-${trackAlias}-${groupId}-${objId}`
+function createMultiObjectHash(mappingType, trackAlias, groupId, objId) {
+  return `${mappingType}-${trackAlias}-${groupId}-${objId}`
 }
 
 // MOQT
@@ -455,6 +488,8 @@ async function moqCreatePublisherSession (moqt) {
       announcedNamespaces.push(trackData.namespace)
     }
   }
+
+  lastObjectSentMs = Date.now()
 }
 
 function checkTrackData () {
@@ -473,7 +508,7 @@ function moqResetState () {
   moqPublisherState = {}
 }
 
-function moqCalculateSendOrder (packet) {
+function moqCalculateSendOrder (packet, isHiPri) {
   // Prioritize:
   // Audio over video
   // New over old
@@ -483,8 +518,8 @@ function moqCalculateSendOrder (packet) {
     // Send now
     ret = Number.MAX_SAFE_INTEGER
   } else {
-    if (tracks[packet.GetData().mediaType].isHipri) {
-      ret = Math.floor(ret + Number.MAX_SAFE_INTEGER / 2)
+    if (isHiPri) {
+      ret += Math.floor(ret + Number.MAX_SAFE_INTEGER / 2)
     }
   }
   return ret

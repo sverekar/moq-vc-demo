@@ -48,6 +48,24 @@ export class AppComponent implements OnInit {
   audioJitterBufferMs: number = 200
   videoJitterBufferMs: number = 100
 
+  // Debugging variables
+  // Encoding variables
+  encodedAudioTs: number | undefined = undefined;
+  encodedAudioCompensatedTs: number | undefined = undefined;
+  encodedAudioLatencyMs: number | undefined = undefined;
+  encodedVideoTs: number | undefined = undefined;
+  encodedVideoCompensatedTs: number | undefined = undefined;
+  encodedVideoLatencyMs: number | undefined = undefined;
+  uploadStatsAudioInflight: string | undefined = undefined;
+  uploadStatsVideoInflight: string | undefined = undefined;
+  totalAudioChunksDropped: number = 0;
+  totalVideoChunksDropped: number = 0;
+  firstAts: number | undefined = undefined;
+  firstVts: number | undefined = undefined;
+  firstCompAts: number | undefined = undefined;
+  firstCompVts: number | undefined = undefined;
+  encoderDroppedFrames: string[] = [];
+
   subscriptionList : Array<{ id:string, namespace: string, trackName: string, self: boolean}> = [];
   videoMediaDevices: Array<{deviceId: string, label: string}> = [];
   videoResolutions: Array<{width: number, height: number, fps: number, level: number}> = [];
@@ -151,6 +169,21 @@ export class AppComponent implements OnInit {
         }
     } else {
       this.me.stop();
+      this.encodedAudioTs = undefined;
+      this.encodedAudioCompensatedTs = undefined;
+      this.encodedAudioLatencyMs = undefined;
+      this.encodedVideoTs = undefined;
+      this.encodedVideoCompensatedTs = undefined;
+      this.encodedVideoLatencyMs = undefined;
+      this.uploadStatsAudioInflight = undefined;
+      this.uploadStatsVideoInflight = undefined;
+      this.totalAudioChunksDropped = 0;
+      this.totalVideoChunksDropped = 0;
+      this.firstAts = undefined;
+      this.firstVts = undefined;
+      this.firstCompAts = undefined;
+      this.firstCompVts = undefined;
+      this.encoderDroppedFrames = [];
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
       setTimeout(()=> {this.isAnnounce = true}, 1000);
     }
@@ -159,6 +192,66 @@ export class AppComponent implements OnInit {
   destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
   }
+
+  stats(data: any) {
+    if ('publish' in data) {
+      this.readyToPublish = data['publish'];
+    }
+    if ('encodedAudioTs' in data) {
+      this.encodedAudioTs = data['encodedAudioTs'];
+    }
+    if ('encodedAudioTs' in data) {
+      this.encodedAudioTs = data['encodedAudioTs']
+    }
+    if ('encodedAudioCompensatedTs' in data) {
+      this.encodedAudioCompensatedTs = data['encodedAudioCompensatedTs']
+    }
+    if ('encodedAudioLatencyMs' in data) {
+      this.encodedAudioLatencyMs = data['encodedAudioLatencyMs']
+    }
+    if ('encodedVideoTs' in data) {
+      this.encodedVideoTs = data['encodedVideoTs']
+    }
+    if ('encodedVideoCompensatedTs' in data) {
+      this.encodedVideoCompensatedTs = data['encodedVideoCompensatedTs']
+    }
+    if ('encodedVideoLatencyMs' in data) {
+      this.encodedVideoLatencyMs = data['encodedVideoLatencyMs']
+    }
+    if ('uploadStatsAudioInflight' in data) {
+      this.uploadStatsAudioInflight = data['uploadStatsAudioInflight']
+    }
+    if ('uploadStatsVideoInflight' in data) {
+      this.uploadStatsVideoInflight = data['uploadStatsVideoInflight']
+    }
+    if ('audioChunkDropped' in data) {
+      this.totalAudioChunksDropped++;
+    }
+    if ('videoChunkDropped' in data) {
+      this.totalVideoChunksDropped++;
+    }
+    if ('chunkDroppedMsg' in data) {
+      console.debug(data['chunkDroppedMsg'])
+      this.encoderDroppedFrames.push(data['chunkDroppedMsg']);
+    }
+    if ('firstAts' in data) {
+      this.firstAts = data['firstAts']
+    }
+    if ('firstVts' in data) {
+      this.firstVts = data['firstVts']
+    }
+    if ('firstCompAts' in data) {
+      this.firstCompAts = data['firstCompAts']
+    }
+    if ('firstCompVts' in data) {
+      this.firstCompVts = data['firstCompVts']
+    }
+  }
+
+  trackByFn(index: number, item: string) {
+    return index;
+  }
+
 }
 
 @Component({
