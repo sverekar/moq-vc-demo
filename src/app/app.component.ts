@@ -1,11 +1,12 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, NgZone, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
-import { NgbActiveModal, NgbModal, NgbModalRef, NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbActiveModal, NgbModal, NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { from } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { SubscriberStats } from './person/common';
+import { AnnounceStatsComponent } from './announce-stats/announce-stats.component';
 
 @Component({
   selector: 'app-root',
@@ -15,7 +16,8 @@ import { SubscriberStats } from './person/common';
     FormsModule,
     CommonModule,
     RouterOutlet,
-    PersonComponent
+    PersonComponent,
+    AnnounceStatsComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -57,8 +59,8 @@ export class AppComponent implements OnInit {
   encodedVideoTs: number | undefined = undefined;
   encodedVideoCompensatedTs: number | undefined = undefined;
   encodedVideoLatencyMs: number | undefined = undefined;
-  uploadStatsAudioInflight: string | undefined = undefined;
-  uploadStatsVideoInflight: string | undefined = undefined;
+  uploadStatsAudioInflight: string = '0';
+  uploadStatsVideoInflight: string  = '0';
   totalAudioChunksDropped: number = 0;
   totalVideoChunksDropped: number = 0;
   firstAts: number | undefined = undefined;
@@ -77,13 +79,16 @@ export class AppComponent implements OnInit {
   audioMediaDevices: Array<{deviceId: string, label: string}> = [];
 
   readyToPublish: boolean = false;
+
   isAnnounce: boolean = true;
 
   private modalService = inject(NgbModal);
 
   @ViewChild('me', { static: true }) me!: PersonComponent;
 
-  constructor(private ref: ChangeDetectorRef, private location: Location) {
+  @ViewChild('meStats', { static: true }) announceStats!: AnnounceStatsComponent;
+
+  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone) {
 
     this.videoResolutions.push({width: 320, height: 180, fps: 30, level: 13})
     this.videoResolutions.push({width: 320, height: 180, fps: 15, level: 12})
@@ -173,25 +178,18 @@ export class AppComponent implements OnInit {
           this.isAnnounce = true;
         }
     } else {
-      this.me.stop();
-      this.encodedAudioTs = undefined;
-      this.encodedAudioCompensatedTs = undefined;
-      this.encodedAudioLatencyMs = undefined;
-      this.encodedVideoTs = undefined;
-      this.encodedVideoCompensatedTs = undefined;
-      this.encodedVideoLatencyMs = undefined;
-      this.uploadStatsAudioInflight = undefined;
-      this.uploadStatsVideoInflight = undefined;
-      this.totalAudioChunksDropped = 0;
-      this.totalVideoChunksDropped = 0;
-      this.firstAts = undefined;
-      this.firstVts = undefined;
-      this.firstCompAts = undefined;
-      this.firstCompVts = undefined;
-      this.encoderDroppedFrames = [];
+
+      this.announceStats.clearAnounceStats();
       this.subscriberStats.clear();
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
-      setTimeout(()=> {this.isAnnounce = true}, 1000);
+      // Run outside of angular scope to avoid performance issue.
+      this.ngZone.runOutsideAngular(() => {
+        this.me.stop();
+        setTimeout(() => {
+          this.isAnnounce = true;
+          this.ref.detectChanges();
+        }, 1000);
+      })
     }
   }
 
@@ -206,58 +204,7 @@ export class AppComponent implements OnInit {
 
   encoderStats(data: any) {
 
-    if ('publish' in data) {
-      this.readyToPublish = data['publish'];
-    }
-    if ('encodedAudioTs' in data) {
-      this.encodedAudioTs = data['encodedAudioTs'];
-    }
-    if ('encodedAudioTs' in data) {
-      this.encodedAudioTs = data['encodedAudioTs']
-    }
-    if ('encodedAudioCompensatedTs' in data) {
-      this.encodedAudioCompensatedTs = data['encodedAudioCompensatedTs']
-    }
-    if ('encodedAudioLatencyMs' in data) {
-      this.encodedAudioLatencyMs = data['encodedAudioLatencyMs']
-    }
-    if ('encodedVideoTs' in data) {
-      this.encodedVideoTs = data['encodedVideoTs']
-    }
-    if ('encodedVideoCompensatedTs' in data) {
-      this.encodedVideoCompensatedTs = data['encodedVideoCompensatedTs']
-    }
-    if ('encodedVideoLatencyMs' in data) {
-      this.encodedVideoLatencyMs = data['encodedVideoLatencyMs']
-    }
-    if ('uploadStatsAudioInflight' in data) {
-      this.uploadStatsAudioInflight = data['uploadStatsAudioInflight']
-    }
-    if ('uploadStatsVideoInflight' in data) {
-      this.uploadStatsVideoInflight = data['uploadStatsVideoInflight']
-    }
-    if ('audioChunkDropped' in data) {
-      this.totalAudioChunksDropped++;
-    }
-    if ('videoChunkDropped' in data) {
-      this.totalVideoChunksDropped++;
-    }
-    if ('chunkDroppedMsg' in data) {
-      console.debug(data['chunkDroppedMsg'])
-      this.encoderDroppedFrames.push(data['chunkDroppedMsg']);
-    }
-    if ('firstAts' in data) {
-      this.firstAts = data['firstAts']
-    }
-    if ('firstVts' in data) {
-      this.firstVts = data['firstVts']
-    }
-    if ('firstCompAts' in data) {
-      this.firstCompAts = data['firstCompAts']
-    }
-    if ('firstCompVts' in data) {
-      this.firstCompVts = data['firstCompVts']
-    }
+    this.announceStats.updateAnounceStats(data);
   }
 
   playerStats(data: any): void {

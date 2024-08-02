@@ -34,11 +34,7 @@
     color: white;
 }
 
-.label {
-    font-family: "Montserrat600" !important;
-    font-size: 18pt;
-    color: $base-color;
-}
+
 
 .form {
     display: grid;
@@ -130,12 +126,5 @@
 .player-config {
   padding: 5px;
   display: grid;
-  margin-bottom: 5px;
-}
-
-.form-row-2 {
-  display: grid;
-  grid-template-columns: 300px 200px;
-  align-items: center;
   margin-bottom: 5px;
 }

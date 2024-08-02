@@ -11,7 +11,8 @@ declare const MediaStreamTrackProcessor: any;
     CommonModule
   ],
   templateUrl: './person.component.html',
-  styleUrl: './person.component.scss'
+  styleUrl: './person.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PersonComponent implements OnInit, OnChanges {
 
@@ -35,6 +36,8 @@ export class PersonComponent implements OnInit, OnChanges {
   @Output() stats = new EventEmitter<any>();
 
   @Output() destroy = new EventEmitter<string>()
+
+  @Output() publish = new EventEmitter<boolean>()
 
   @ViewChild('videoplayer', { static: false }) videoPlayer!: ElementRef;
 
@@ -179,9 +182,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private statsHelper: any = {};
 
-  constructor(private ngZone: NgZone) {
-
-  }
+  constructor(private ngZone: NgZone) {}
 
   ngOnInit(): void {
 
@@ -252,7 +253,7 @@ export class PersonComponent implements OnInit, OnChanges {
            console.error(`Started video preview. Err: ${err}`);
          })
          .finally(() => {
-           this.stats.emit({'publish': true});
+           this.publish.emit(true);
          });
        }
       }
@@ -282,23 +283,24 @@ export class PersonComponent implements OnInit, OnChanges {
 
       this.createWebWorkers();
 
-      // Print messages from the worker in the console
-      this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.encoderProcessWorkerMessage(e);
+      this.ngZone.runOutsideAngular(() => {
+        // Print messages from the worker in the console
+        this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
       });
-      this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
-        this.encoderProcessWorkerMessage(e);
-      });
-      this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.encoderProcessWorkerMessage(e);
-      });
-      this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.encoderProcessWorkerMessage(e);
-      });
-      this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.encoderProcessWorkerMessage(e);
-      });
-
       const vTrack = mediaStream.getVideoTracks()[0];
       const vProcessor = new MediaStreamTrackProcessor(vTrack);
       const vFrameStream = vProcessor.readable;

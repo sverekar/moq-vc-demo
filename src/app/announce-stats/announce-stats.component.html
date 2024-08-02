@@ -1,0 +1,88 @@
+<div style="margin-right: 5px; margin-top: 10px;">
+  <h4 class="label" style="font-size: 14pt;">Real Time Debugging Data</h4>
+  <div style="margin-top: 10px;">
+    <h4 class="label" style="font-size: 12pt; margin-top: 10px;">Capture (uncompressed domain) Output</h4>
+    <div class="form-row-2">
+      <label class="form-label">First audio timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="firstAts">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">First video timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="firstVts">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">V-A start diff (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="((firstVts || 0) -  (firstAts || 0))">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">First comp audio timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="firstCompAts">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">First comp video timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="firstCompVts">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">V-A comp start diff (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="((firstCompVts || 0) -  (firstCompAts || 0))">
+    </div>
+  </div>
+  <div style="margin-top: 10px;">
+    <h4 class="label" style="font-size: 12pt;">Encoder Output</h4>
+    <div class="form-row-2">
+      <label class="form-label">Current audio timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="encodedAudioTs">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Current comp audio timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="encodedAudioCompensatedTs">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Encoding audio latency (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="encodedAudioLatencyMs">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Current video timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="encodedVideoTs">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Current comp video timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="encodedVideoCompensatedTs">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Encoding video latency (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="encodedVideoLatencyMs">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Current V-A timestamp (ms) </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="(encodedVideoCompensatedTs || 0) - (encodedAudioCompensatedTs || 0)">
+    </div>
+  </div>
+  <div style="margin-top: 10px;">
+    <h4 class="label" style="font-size: 12pt;">Muxer Sender</h4>
+    <div class="form-row-2">
+      <label class="form-label">Inflight audio requests </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="uploadStatsAudioInflight">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Inflight video requests </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="uploadStatsVideoInflight">
+    </div>
+  </div>
+  <div style="margin-top: 10px;">
+    <h4 class="label" style="font-size: 12pt;">Dropped Data</h4>
+    <div class="form-row-2">
+      <label class="form-label">Total dropped audio chunks </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="totalAudioChunksDropped">
+    </div>
+    <div class="form-row-2">
+      <label class="form-label">Total dropped video chunks </label>
+      <input readonly type="text" class="form-control smaller-input" [ngModel]="totalVideoChunksDropped">
+    </div>
+    <!-- <ol>
+      <li *ngFor="let droppedFrame of encoderDroppedFrames; trackBy: trackByFn">
+        {{ droppedFrame }}
+      </li>
+    </ol> -->
+  </div>
+</div>

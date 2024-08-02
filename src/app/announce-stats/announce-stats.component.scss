@@ -1,0 +1,9 @@
+@import '../../styles.scss';
+@import '../app.component.scss';
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 300px 200px;
+  align-items: center;
+  margin-bottom: 5px;
+}
