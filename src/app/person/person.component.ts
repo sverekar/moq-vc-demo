@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
-import { CicularAudioSharedBuffer, JitterBuffer, TimeBufferChecker, VideoRenderBuffer } from './common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { CicularAudioSharedBuffer, JitterBuffer, TimeBufferChecker, VideoRenderBuffer } from '../common';
 
 declare const MediaStreamTrackProcessor: any;
 
@@ -176,18 +176,15 @@ export class PersonComponent implements OnInit, OnChanges {
   private sourceBufferAudioWorklet:AudioWorkletNode | null = null;
   private systemAudioLatencyMs: number = 0;
   private audioSharedBuffer:CicularAudioSharedBuffer | null = null;
-  private animFrame: number | null = null;
-  private wcLastRender:number = 0;
+  private animFrame: any | null = null;
+  private wcLastRender: number = 0;
   private videoPlayerCtx:CanvasRenderingContext2D | null = null;
 
   private statsHelper: any = {};
 
-  constructor(private ngZone: NgZone) {}
+  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef) {}
 
   ngOnInit(): void {
-
-    this.audioTimeChecker = new TimeBufferChecker("audio");
-    this.videoTimeChecker = new TimeBufferChecker("video");
 
     if (window.crossOriginIsolated) {
       console.log("crossOriginIsolated enabled, we can use SharedArrayBuffer");
@@ -197,8 +194,10 @@ export class PersonComponent implements OnInit, OnChanges {
     // If subscriber, we have all the information required.
     if (!this.self) {
       this.loadPlayer();
+    } else {
+      this.audioTimeChecker = new TimeBufferChecker("audio");
+      this.videoTimeChecker = new TimeBufferChecker("video");
     }
-
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -474,13 +473,13 @@ export class PersonComponent implements OnInit, OnChanges {
 
     // LOGGING
     if ((e.data.type === "debug") && (this.VERBOSE === true)) {
-        console.debug(e.data.data);
+      //  console.debug(e.data.data);
     } else if (e.data.type === "info") {
-        console.log(e.data.data);
+      //  console.log(e.data.data);
     } else if (e.data.type === "error") {
         console.error(e.data.data);
     } else if (e.data.type === "warning") {
-        console.warn(e.data.data);
+      //  console.warn(e.data.data);
     // ENCODING
     } else if (e.data.type === "vframe") {
         const vFrame = e.data.data;
@@ -643,53 +642,53 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private loadPlayer() {
 
-    const self =  this;
+    this.videoRendererBuffer = new VideoRenderBuffer();
+    this.latencyAudioChecker = new TimeBufferChecker("audio");
+    this.latencyVideoChecker = new TimeBufferChecker("video");
+    this.wtVideoJitterBuffer = new JitterBuffer(this.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+    this.wtAudioJitterBuffer = new JitterBuffer(this.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
 
-    self.videoRendererBuffer = new VideoRenderBuffer();
-    self.latencyAudioChecker = new TimeBufferChecker("audio");
-    self.latencyVideoChecker = new TimeBufferChecker("video");
-    self.wtVideoJitterBuffer = new JitterBuffer(self.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
-    self.wtAudioJitterBuffer = new JitterBuffer(self.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
-
-    self.muxerDownloaderWorker = new Worker("../../assets/js/receiver/moq_demuxer_downloader.js", {type: "module"});
-    self.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
-    self.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
+    this.muxerDownloaderWorker = new Worker("../../assets/js/receiver/moq_demuxer_downloader.js", {type: "module"});
+    this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
+    this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
     this.playerAudioTimestamps = this.playerAudioTimestamps.bind(this);
     this.playerUpdateDroppedFrame = this.playerUpdateDroppedFrame.bind(this);
 
-    self.muxerDownloaderWorker.addEventListener('message', function (e) {
-      self.playerProcessWorkerMessage(e);
-    });
-    self.videoDecoderWorker.addEventListener('message', function (e) {
-      self.playerProcessWorkerMessage(e);
-    });
-    self.audioDecoderWorker.addEventListener('message', function (e) {
-      self.playerProcessWorkerMessage(e);
-    });
+    this.ngZone.runOutsideAngular(() => {
+      this.muxerDownloaderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        this.playerProcessWorkerMessage(e);
+      });
+      this.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        this.playerProcessWorkerMessage(e);
+      });
+      this.audioDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        this.playerProcessWorkerMessage(e);
+      });
+    })
 
-    self.downloaderConfig.urlHostPort = this.url;
-    self.downloaderConfig.moqTracks["video"].namespace = this.namespace;
-    self.downloaderConfig.moqTracks["video"].name = this.trackName + "-video";
-    self.downloaderConfig.moqTracks["video"].authInfo = this.auth;
+    this.downloaderConfig.urlHostPort = this.url;
+    this.downloaderConfig.moqTracks["video"].namespace = this.namespace;
+    this.downloaderConfig.moqTracks["video"].name = this.trackName + "-video";
+    this.downloaderConfig.moqTracks["video"].authInfo = this.auth;
 
-    self.downloaderConfig.moqTracks["audio"].namespace = this.namespace;
-    self.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
-    self.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
+    this.downloaderConfig.moqTracks["audio"].namespace = this.namespace;
+    this.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
+    this.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
 
-    self.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig});
+    this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig});
   }
 
   private async playerProcessWorkerMessage(e: MessageEvent<any>) {
 
     if ((e.data.type === "debug") && (this.VERBOSE === true)) {
-      console.debug(e.data.data);
+     // console.debug(e.data.data);
     } else if (e.data.type === "info") {
-      console.log(e.data.data);
+     // console.log(e.data.data);
     } else if (e.data.type === "error") {
       console.error(e.data.data);
     } else if (e.data.type === "warning") {
-      console.warn(e.data.data);
+     // console.warn(e.data.data);
     // CHUNKS
     } else if (e.data.type === "videochunk") {
       const chunk = e.data.chunk;
@@ -814,10 +813,10 @@ export class PersonComponent implements OnInit, OnChanges {
           // Uses compensated TS
           this.audioSharedBuffer.Add(aFrame, this.timingInfo.decoder.currentAudioTs);
           if (this.animFrame === null) {
-            //this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
-            this.ngZone.runOutsideAngular(() => {
-              this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
-            });
+            this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
+            // this.ngZone.runOutsideAngular(() => {
+            //   this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
+            // })
           }
       }
     } else if (e.data.type === "vframe") {
@@ -924,7 +923,10 @@ export class PersonComponent implements OnInit, OnChanges {
             const compensatedAudioTS = Math.max(0, this.timingInfo.renderer.currentAudioTs - (this.systemAudioLatencyMs * 1000));
             const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
             if (retData.vFrame != null) {
-                this.videoFramePrinted = true;
+                if (!this.videoFramePrinted) {
+                  this.videoFramePrinted = true;
+                  this.ref.detectChanges();
+                }
                 this.playerSetVideoSize(retData.vFrame);
                 this.videoPlayerCtx?.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
                 this.timingInfo.renderer.currentVideoTs = (retData.vFrame as VideoFrame).timestamp;
@@ -987,8 +989,9 @@ export class PersonComponent implements OnInit, OnChanges {
         this.videoPlayer.nativeElement.height = this. currentVideoSize.height;
 
         // Video player ctx
-        this.videoPlayerCtx = this.videoPlayer.nativeElement.getContext('2d');
+       this.videoPlayerCtx = this.videoPlayer.nativeElement.getContext('2d');
     }
+
   }
 
   private playerUpdateDroppedFrame(droppedFrameData: any) {

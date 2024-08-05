@@ -1,7 +1,9 @@
 <div class="person" *ngIf="self">
-  <div class="name"> {{ namespace + '/' + trackName }} </div>
+  <div  style="height: 30px;">
+    <span class="name"> {{ namespace + '/' + trackName }}</span>
+  </div>
   <div class="spinner-border spinner" role="status" [hidden]="videoFramePrinted"> </div>
-  <video [hidden]="!videoFramePrinted" width="100%" autoplay="" [muted]="self" #videoplayer></video>
+  <video [hidden]="!videoFramePrinted" autoplay="" [muted]="self" #videoplayer></video>
 </div>
 <div class="person" *ngIf="!self">
   <div>
@@ -14,5 +16,5 @@
   </div>
 
   <div class="spinner-border spinner" role="status" [hidden]="videoFramePrinted"> </div>
-  <canvas [hidden]="!videoFramePrinted" #videoplayer width="100%"></canvas>
+  <canvas [hidden]="!videoFramePrinted" #videoplayer></canvas>
 </div>

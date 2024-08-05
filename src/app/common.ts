@@ -1,10 +1,10 @@
 export class TimeBufferChecker {
 
   mediaType: any;
-  elementsList: Array<any>
-  isVerbose: boolean;
+  elementsList: any;
+  isVerbose: any;
 
-  constructor (mediaType: string, isVerbose?: boolean | undefined) {
+  constructor (mediaType: any, isVerbose?: any) {
     this.mediaType = mediaType
     this.elementsList = []
     this.isVerbose = false
@@ -23,7 +23,7 @@ export class TimeBufferChecker {
     }
   }
 
-  GetItemByTs (ts: number, useExact?: boolean) {
+  GetItemByTs (ts: any, useExact?: any) {
     let ret = { valid: false, ts: -1, compensatedTs: -1, estimatedDuration: -1, clkms: -1 }
     let i = 0
     let indexPastTs = -1
@@ -62,17 +62,18 @@ export class TimeBufferChecker {
   }
 }
 
-const MAX_ELEMENTS_RENDERER = 600
+const MAX_ELEMENTS_RENDERER = 60
 
 export class VideoRenderBuffer {
 
-  elementsList: Array<any>;
-  totalDiscarded: number;
-  totalLengthMs: number;
+  elementsList: any;
+  totalDiscarded: any;
+  totalLengthMs: any;
 
   constructor () {
     this.elementsList = []
     this.totalDiscarded = 0
+
     this.totalLengthMs = 0
   }
 
@@ -81,17 +82,18 @@ export class VideoRenderBuffer {
     if (this.elementsList.length < MAX_ELEMENTS_RENDERER) {
       // Add at the end (ordered by timestamp)
       this.elementsList.push(vFrame)
+
       this.totalLengthMs += vFrame.duration / 1000
     } else {
       r = false
     }
-    return r;
+    return r
   }
 
   GetFirstElement () {
     const ret = { vFrame: null, discarded: 0, totalDiscarded: 0, queueSize: this.elementsList.length, queueLengthMs: this.totalLengthMs }
     if (this.elementsList.length > 0) {
-      ret.vFrame = this.elementsList.shift();
+      ret.vFrame = this.elementsList.shift()
       this.totalLengthMs -= (ret.vFrame as any).duration / 1000
       ret.queueSize = this.elementsList.length
       ret.queueLengthMs = this.totalLengthMs
@@ -102,26 +104,31 @@ export class VideoRenderBuffer {
 
   GetItemByTs (ts: any) {
     const ret = { vFrame: null, discarded: 0, totalDiscarded: this.totalDiscarded, queueSize: this.elementsList.length, queueLengthMs: this.totalLengthMs }
+
+    if (this.elementsList.length <= 0 || ts < this.elementsList[0].timestamp) {
+      return ret
+    }
+
     let exit = false
     let lastFrameInThePastIndex = 0
     while ((lastFrameInThePastIndex < this.elementsList.length) && (exit === false)) {
-      const vFrameFirstTimestamp = this.elementsList[lastFrameInThePastIndex].timestamp
-      if (vFrameFirstTimestamp > ts) {
+      if (this.elementsList[lastFrameInThePastIndex].timestamp >= ts) {
         exit = true
       } else {
         lastFrameInThePastIndex++
       }
     }
 
-    for (let n = 0; n < lastFrameInThePastIndex - 1; n++) {
+    // Remove items from 0..(lastFrameInThePastIndex-1)
+    for (let n = 0; n < (lastFrameInThePastIndex - 1); n++) {
       const vFrame = this.elementsList.shift()
       ret.discarded++
       this.totalLengthMs -= vFrame.duration / 1000
       vFrame.close()
     }
 
-    if (this.elementsList.length > 0 && lastFrameInThePastIndex > 0) {
-      ret.vFrame = this.elementsList.shift();
+    if (this.elementsList.length > 0) {
+      ret.vFrame = this.elementsList.shift()
       this.totalLengthMs -= (ret.vFrame as any).duration / 1000
     }
 
@@ -129,6 +136,7 @@ export class VideoRenderBuffer {
     ret.totalDiscarded = this.totalDiscarded
     ret.queueSize = this.elementsList.length
     ret.queueLengthMs = this.totalLengthMs
+
     return ret
   }
 
@@ -146,15 +154,15 @@ const DEFAULT_BUFFER_SIZE_MS = 200
 
 export class JitterBuffer {
 
-  bufferSizeMs: number;
-  elementsList: Array<any>;
+  bufferSizeMs: any;
+  elementsList: any
   droppedCallback: any;
-  totalLengthMs: number;
-  numTotalGaps: number;
-  numTotalLostStreams: number;
-  lastCorrectSeqId: number | undefined;
+  totalLengthMs: any
+  numTotalGaps: any
+  numTotalLostStreams: any
+  lastCorrectSeqId: any
 
-  constructor (maxSizeMs: number, droppedCallback: any) {
+  constructor (maxSizeMs: any, droppedCallback: any) {
     this.bufferSizeMs = DEFAULT_BUFFER_SIZE_MS
     if (maxSizeMs !== undefined && maxSizeMs > 0) {
       this.bufferSizeMs = maxSizeMs
@@ -168,7 +176,7 @@ export class JitterBuffer {
     this.lastCorrectSeqId = undefined
   }
 
-  AddItem (chunk: any, seqId:number, extraData: any) {
+  AddItem (chunk: any, seqId: any, extraData: any) {
     let r
     // Order by SeqID
     if (this.elementsList.length <= 0) {
@@ -242,28 +250,34 @@ export class JitterBuffer {
     this.lastCorrectSeqId = undefined
   }
 
-  UpdateMaxSize(bufferSizeMs: number) {
+  UpdateMaxSize(bufferSizeMs: any) {
     if (bufferSizeMs > 0) {
       this.bufferSizeMs = bufferSizeMs;
     }
   }
 }
 
+
 const SharedStates = {
   AUDIO_BUFF_START: 0, // The reader only modifies this pointer
   AUDIO_BUFF_END: 1, // The writer (this) only modifies this pointer
+
   AUDIO_INSERTED_SILENCE_MS: 2,
+
   IS_PLAYING: 3 // Indicates playback state
 }
+
+// Keep only last 30 audio frames in the TS index
+const MAX_ITEMS_IN_TS_INDEX = 30
 
 export class CicularAudioSharedBuffer {
 
   sampleIndexToTS: any;
   sharedAudiobuffers: any;
   sharedCommBuffer: any;
-  size: number;
-  contextFrequency: number;
-  sharedStates: Int32Array;
+  size: any;
+  contextFrequency: any;
+  sharedStates: any;
   onDropped: any;
   lastTimestamp: any;
 
@@ -340,11 +354,13 @@ export class CicularAudioSharedBuffer {
         this.onDropped({ clkms: Date.now(), mediaType: 'audio', ts: frameTimestamp, msg: 'Dropped PCM audio frame, ring buffer full' })
       }
     } else {
+      // This will always return recent TS. This is a cicular buffer, we are indexing with numsample in the buffer, so things will get messy if we do not ask for GetStats for more than buffer size. And this happens when tab loses focus
+      this._cleanUpIndex()
       this.sampleIndexToTS.push({ sampleIndex: end, ts: frameTimestamp })
       if (end + samplesToAdd <= this.size) {
         // All
         for (let c = 0; c < aFrame.numberOfChannels; c++) {
-          const outputRingBuffer = new Float32Array(this.sharedAudiobuffers[c], end * Float32Array.BYTES_PER_ELEMENT)
+          const outputRingBuffer = new Float32Array(this.sharedAudiobuffers[c], (end as any) * Float32Array.BYTES_PER_ELEMENT)
           aFrame.copyTo(outputRingBuffer, { planeIndex: c, frameOffset: 0, frameCount: samplesToAdd })
         }
         end += samplesToAdd
@@ -353,11 +369,11 @@ export class CicularAudioSharedBuffer {
         const samplesToAddSecondsHalf = samplesToAdd - samplesToAddFirstHalf
         for (let c = 0; c < aFrame.numberOfChannels; c++) {
           // First half
-          const outputRingBuffer1 = new Float32Array(this.sharedAudiobuffers[c], end * Float32Array.BYTES_PER_ELEMENT, samplesToAddFirstHalf)
+          const outputRingBuffer1 = new Float32Array(this.sharedAudiobuffers[c], (end as any) * Float32Array.BYTES_PER_ELEMENT, samplesToAddFirstHalf as any)
           aFrame.copyTo(outputRingBuffer1, { planeIndex: c, frameOffset: 0, frameCount: samplesToAddFirstHalf })
 
           // Second half
-          const outputRingBuffer2 = new Float32Array(this.sharedAudiobuffers[c], 0, samplesToAddSecondsHalf)
+          const outputRingBuffer2 = new Float32Array(this.sharedAudiobuffers[c], 0, samplesToAddSecondsHalf as any)
           aFrame.copyTo(outputRingBuffer2, { planeIndex: c, frameOffset: samplesToAddFirstHalf, frameCount: samplesToAddSecondsHalf })
         }
         end = samplesToAddSecondsHalf
@@ -366,7 +382,7 @@ export class CicularAudioSharedBuffer {
     Atomics.store(this.sharedStates, SharedStates.AUDIO_BUFF_END, end)
   }
 
-  GetStats () {
+  GetStats (): any {
     const start = Atomics.load(this.sharedStates, SharedStates.AUDIO_BUFF_START) // Reader
     const end = Atomics.load(this.sharedStates, SharedStates.AUDIO_BUFF_END) // Writer
 
@@ -390,7 +406,7 @@ export class CicularAudioSharedBuffer {
 
       // Adjust at sample level
       // Assume ts in nanosec
-      this.lastTimestamp = lastFrameTimestampSent + (extraSamplesSent * 1000 * 1000) / this.contextFrequency
+      this.lastTimestamp = lastFrameTimestampSent + (extraSamplesSent as any * 1000 * 1000) / this.contextFrequency
 
       // Remove old indexes (already sent)
       this.sampleIndexToTS = this.sampleIndexToTS.slice(retIndexTs + 1)
@@ -428,7 +444,16 @@ export class CicularAudioSharedBuffer {
     Atomics.store(this.sharedStates, SharedStates.IS_PLAYING, 0)
   }
 
-  _getUsedSlots (start: number, end: number) {
+  _cleanUpIndex() {
+    if (this.sampleIndexToTS == null) {
+      return
+    }
+    while (this.sampleIndexToTS.length > MAX_ITEMS_IN_TS_INDEX) {
+      this.sampleIndexToTS.shift()
+    }
+  }
+
+  _getUsedSlots (start: any, end: any) {
     if (start === end) {
       return 0
     } else if (end > start) {
@@ -438,11 +463,11 @@ export class CicularAudioSharedBuffer {
     }
   }
 
-  _getFreeSlots (start: number, end: number) {
+  _getFreeSlots (start: any, end: any) {
     return this.size - this._getUsedSlots(start, end)
   }
 
-  _isSentSample (index: number, start: number, end: number) {
+  _isSentSample (index: any, start: any, end: any) {
     if (start === end) {
       return false
     } else if (end > start) {

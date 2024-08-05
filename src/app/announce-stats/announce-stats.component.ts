@@ -30,6 +30,7 @@ export class AnnounceStatsComponent {
   totalAudioChunksDropped : number = 0;
   totalVideoChunksDropped : number = 0;
   droppedFramesData: Array<string> = [];
+  hideStats: boolean = true;
 
   constructor(private ref: ChangeDetectorRef) { }
 
@@ -99,7 +100,9 @@ export class AnnounceStatsComponent {
         }
       }
     }
-    this.ref.detectChanges();
+    if (!this.hideStats) {
+      this.ref.detectChanges();
+    }
   }
 
   clearAnounceStats() {
