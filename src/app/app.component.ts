@@ -49,7 +49,7 @@ export class AppComponent implements OnInit {
   audioEncodingBitrateBps: number = 32000;
 
   // Subscriver player configuration
-  playerBufferMs: number = 100
+  playerBufferMs: number = 200
   playerMaxBufferMs: number = 1000
   audioJitterBufferMs: number = 200
   videoJitterBufferMs: number = 100
@@ -68,10 +68,10 @@ export class AppComponent implements OnInit {
   @ViewChild('me', { static: true }) me!: PersonComponent;
 
   // Announcer stats view
-  @ViewChild('meStats', { static: true }) announceStats!: AnnounceStatsComponent;
+  // @ViewChild('meStats', { static: true }) announceStats!: AnnounceStatsComponent;
 
   // Subscribers stats view
-  @ViewChild('subscriberStats', { static: true }) subsbcriberStats!: SubscriberStatsComponent;
+  // @ViewChild('subscriberStats', { static: true }) subsbcriberStats!: SubscriberStatsComponent;
 
   constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone) {
 
@@ -163,7 +163,7 @@ export class AppComponent implements OnInit {
         }
     } else {
 
-      this.announceStats.clearAnounceStats();
+      //this.announceStats.clearAnounceStats();
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
       // Run outside of angular scope to avoid performance issue.
       this.ngZone.runOutsideAngular(() => {
@@ -178,22 +178,22 @@ export class AppComponent implements OnInit {
 
   destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
-    this.ngZone.runOutsideAngular(() => {
-      this.subsbcriberStats.clearSubscriberStats(id);
-    })
+    // this.ngZone.runOutsideAngular(() => {
+    //   this.subsbcriberStats.clearSubscriberStats(id);
+    // })
   }
 
-  announcerStats(data: any) {
-    this.announceStats.updateAnounceStats(data);
-  }
+  // announcerStats(data: any) {
+  //   this.announceStats.updateAnounceStats(data);
+  // }
 
-  subscribersStats(data: any) {
-    this.subsbcriberStats.updateSubscriberStats(data);
-  }
+  // subscribersStats(data: any) {
+  //   this.subsbcriberStats.updateSubscriberStats(data);
+  // }
 
   getPersonId(index: number, item: any){
     return item.id;
- }
+  }
 }
 
 @Component({

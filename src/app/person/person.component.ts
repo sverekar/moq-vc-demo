@@ -51,7 +51,7 @@ export class PersonComponent implements OnInit, OnChanges {
   private VERBOSE = true;
   private AUDIO_STOPPED = 0;
   private AUDIO_PLAYING = 1;
-  private RENDER_VIDEO_EVERY_MS = 10;
+  private RENDER_VIDEO_EVERY_MS = 20;
 
   private videoEncoderConfig = {
     encoderConfig: {
@@ -490,13 +490,13 @@ export class PersonComponent implements OnInit, OnChanges {
               // Adjust video offset to last audio seen (most probable case since audio startsup faster)
               this.videoOffsetTS = -vFrame.timestamp + (this.currentAudioTs || 0) + (this.audioOffsetTS || 0); // Comp video starts last audio seen
           }
-          const firstVts = (vFrame.timestamp / 1000).toFixed(3);
-          const firstCompVts = ((vFrame.timestamp + this.videoOffsetTS)/ 1000).toFixed(3);
+          // const firstVts = (vFrame.timestamp / 1000).toFixed(3);
+          // const firstCompVts = ((vFrame.timestamp + this.videoOffsetTS)/ 1000).toFixed(3);
 
-          this.stats.emit({
-            'firstVts': firstVts,
-            'firstCompVts': firstCompVts,
-          });
+          // this.stats.emit({
+          //   'firstVts': firstVts,
+          //   'firstCompVts': firstCompVts,
+          // });
 
         } else {
           estimatedDuration = vFrame.timestamp - this.currentVideoTs;
@@ -516,13 +516,13 @@ export class PersonComponent implements OnInit, OnChanges {
                 // Adjust audio offset to last video seen
                 this.audioOffsetTS = -aFrame.timestamp + this.currentVideoTs! + this.videoOffsetTS; // Comp audio starts last video seen
             }
-            const firstAts = (aFrame.timestamp / 1000).toFixed(3);
-            const firstCompAts = ((aFrame.timestamp + this.audioOffsetTS)/ 1000).toFixed(3);
+            // const firstAts = (aFrame.timestamp / 1000).toFixed(3);
+            // const firstCompAts = ((aFrame.timestamp + this.audioOffsetTS)/ 1000).toFixed(3);
 
-            this.stats.emit({
-              'firstAts': firstAts,
-              'firstCompAts': firstCompAts,
-            });
+            // this.stats.emit({
+            //   'firstAts': firstAts,
+            //   'firstCompAts': firstCompAts,
+            // });
         } else {
             estimatedDuration = aFrame.timestamp - this.currentAudioTs;
         }
@@ -534,21 +534,22 @@ export class PersonComponent implements OnInit, OnChanges {
     // DROPPED frames by encoders
     } else if (e.data.type === "dropped") {
 
+      console.debug('dropped: ',e.data);
       // As of now, just logging the dropped frame.
-      const droppedFrameData = e.data.data;
-      const mediaType = droppedFrameData.mediaType;
-      const str = new Date(droppedFrameData.clkms).toISOString() + " (" + droppedFrameData.seqId + ")(" + droppedFrameData.ts + ") " + droppedFrameData.msg;
-      if (mediaType === 'video') {
-        this.stats.emit({
-          'videoChunkDropped': true,
-          'chunkDroppedMsg': str
-        })
-      } else  {
-        this.stats.emit({
-          'audioChunkDropped': true,
-          'chunkDroppedMsg': str
-        })
-      }
+      // const droppedFrameData = e.data.data;
+      // const mediaType = droppedFrameData.mediaType;
+      // const str = new Date(droppedFrameData.clkms).toISOString() + " (" + droppedFrameData.seqId + ")(" + droppedFrameData.ts + ") " + droppedFrameData.msg;
+      // if (mediaType === 'video') {
+      //   this.stats.emit({
+      //     'videoChunkDropped': true,
+      //     'chunkDroppedMsg': str
+      //   })
+      // } else  {
+      //   this.stats.emit({
+      //     'audioChunkDropped': true,
+      //     'chunkDroppedMsg': str
+      //   })
+      // }
     // CHUNKS from encoders
     } else if (e.data.type === "vchunk") {
         const chunk = e.data.chunk;
@@ -558,15 +559,15 @@ export class PersonComponent implements OnInit, OnChanges {
         if (!itemTsClk.valid) {
             console.warn(`Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${seqId}`);
         } else {
-          const encodedVideoLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
-          const encodedVideoTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
-          const encodedVideoCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
+          // const encodedVideoLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
+          // const encodedVideoTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
+          // const encodedVideoCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
 
-          this.stats.emit({
-            'encodedVideoTs': encodedVideoTs,
-            'encodedVideoCompensatedTs': encodedVideoCompensatedTs,
-            'encodedVideoLatencyMs': encodedVideoLatencyMs
-          });
+          // this.stats.emit({
+          //   'encodedVideoTs': encodedVideoTs,
+          //   'encodedVideoCompensatedTs': encodedVideoCompensatedTs,
+          //   'encodedVideoLatencyMs': encodedVideoLatencyMs
+          // });
         }
         // Send the encoded video chunk obtained from v_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "video", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, estimatedDuration: itemTsClk.estimatedDuration, seqId: seqId, chunk: chunk, metadata: metadata });
@@ -579,26 +580,27 @@ export class PersonComponent implements OnInit, OnChanges {
         if (!itemTsClk.valid) {
             console.info(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
         } else {
-          const encodedAudioLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
-          const encodedAudioTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
-          const encodedAudioCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
+          // const encodedAudioLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
+          // const encodedAudioTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
+          // const encodedAudioCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
 
-          this.stats.emit({
-            'encodedAudioTs':encodedAudioTs,
-            'encodedAudioCompensatedTs': encodedAudioCompensatedTs,
-            'encodedAudioLatencyMs': encodedAudioLatencyMs
-          });
+          // this.stats.emit({
+          //   'encodedAudioTs':encodedAudioTs,
+          //   'encodedAudioCompensatedTs': encodedAudioCompensatedTs,
+          //   'encodedAudioLatencyMs': encodedAudioLatencyMs
+          // });
         }
           // Send the encoded audio chunk obtained from a_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "audio", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, seqId: seqId, chunk: chunk, metadata: metadata });
 
     // CHUNKS STATS
     } else if (e.data.type === "sendstats") {
-      const inFlightReq = e.data.inFlightReq;
-      this.stats.emit({
-        'uploadStatsAudioInflight': `${inFlightReq['audio']} (${this.returnMax('inFlightAudioReqNum', inFlightReq["audio"])})`,
-        'uploadStatsVideoInflight': `${inFlightReq['video']} (${this.returnMax('inFlightVideoReqNum', inFlightReq["video"])})`
-      })
+      console.debug('sendstats: ', e.data);
+      // const inFlightReq = e.data.inFlightReq;
+      // this.stats.emit({
+      //   'uploadStatsAudioInflight': `${inFlightReq['audio']} (${this.returnMax('inFlightAudioReqNum', inFlightReq["audio"])})`,
+      //   'uploadStatsVideoInflight': `${inFlightReq['video']} (${this.returnMax('inFlightVideoReqNum', inFlightReq["video"])})`
+      // })
     // UNKNOWN
     } else {
         console.error("unknown message: " + e.data);
@@ -651,7 +653,7 @@ export class PersonComponent implements OnInit, OnChanges {
     this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
     this.playerAudioTimestamps = this.playerAudioTimestamps.bind(this);
-    this.playerUpdateDroppedFrame = this.playerUpdateDroppedFrame.bind(this);
+    //this.playerUpdateDroppedFrame = this.playerUpdateDroppedFrame.bind(this);
 
     this.ngZone.runOutsideAngular(() => {
       this.muxerDownloaderWorker.addEventListener('message', (e: MessageEvent<any>) => {
@@ -695,13 +697,13 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.wtVideoJitterBuffer != null) {
           const orderedVideoData = this.wtVideoJitterBuffer.AddItem(chunk, seqId, extraData);
           if (orderedVideoData !== undefined) {
-              if (this.timingInfo.muxer.currentVideoTs < 0) {
-                const firstChunkVts = (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
-                this.stats.emit({
-                  'id': this.namespace + '/' + this.trackName,
-                  'firstChunkVts': firstChunkVts
-                })
-              }
+              // if (this.timingInfo.muxer.currentVideoTs < 0) {
+              //   const firstChunkVts = (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
+              //   this.stats.emit({
+              //     'id': this.namespace + '/' + this.trackName,
+              //     'firstChunkVts': firstChunkVts
+              //   })
+              // }
               // Download is sequential
               if (orderedVideoData.isDisco) {
                   console.warn(`VIDEO DISCO detected in seqId: ${orderedVideoData.seqId}`);
@@ -711,22 +713,22 @@ export class PersonComponent implements OnInit, OnChanges {
               } else {
                   // Adds pts to wallClk info
                   this.latencyVideoChecker!.AddItem({ ts: orderedVideoData.chunk.timestamp, clkms: orderedVideoData.extraData.captureClkms});
-                  this.timingInfo.muxer.currentVideoTs = orderedVideoData.chunk.timestamp;
-                  const currentChunkVTS =  (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
-                  this.stats.emit({
-                    'id': this.namespace + '/' + this.trackName,
-                    'currentChunkVTS': currentChunkVTS
-                  })
+                  //this.timingInfo.muxer.currentVideoTs = orderedVideoData.chunk.timestamp;
+                  // const currentChunkVTS =  (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
+                  // this.stats.emit({
+                  //   'id': this.namespace + '/' + this.trackName,
+                  //   'currentChunkVTS': currentChunkVTS
+                  // })
                   this.videoDecoderWorker.postMessage({ type: "videochunk", seqId: orderedVideoData.seqId, chunk: orderedVideoData.chunk, metadata: orderedVideoData.extraData.metadata, isDisco: orderedVideoData.isDisco });
               }
           }
-          const videoJitterStats = this.wtVideoJitterBuffer.GetStats()
-          this.stats.emit({
-            'id': this.namespace + '/' + this.trackName,
-            'videoJitterCurrentMaxSize': videoJitterStats.currentMaSizeMs,
-            'videoJitterSize':  videoJitterStats.size,
-            'videoJitterGaps': `${videoJitterStats.numTotalGaps} (${videoJitterStats.numTotalLostStreams} streams lost)`
-          });
+          // const videoJitterStats = this.wtVideoJitterBuffer.GetStats()
+          // this.stats.emit({
+          //   'id': this.namespace + '/' + this.trackName,
+          //   'videoJitterCurrentMaxSize': videoJitterStats.currentMaSizeMs,
+          //   'videoJitterSize':  videoJitterStats.size,
+          //   'videoJitterGaps': `${videoJitterStats.numTotalGaps} (${videoJitterStats.numTotalLostStreams} streams lost)`
+          // });
       }
     } else if (e.data.type === "audiochunk") {
       const chunk = e.data.chunk;
@@ -735,13 +737,13 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.wtAudioJitterBuffer != null) {
           const orderedAudioData = this.wtAudioJitterBuffer.AddItem(chunk, seqId, extraData);
           if (orderedAudioData !== undefined) {
-              if (this.timingInfo.muxer.currentAudioTs < 0) {
-                const firstChunkAts = (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
-                this.stats.emit({
-                  'id': this.namespace + '/' + this.trackName,
-                  'firstChunkAts': firstChunkAts
-                })
-              }
+              // if (this.timingInfo.muxer.currentAudioTs < 0) {
+              //   const firstChunkAts = (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
+              //   this.stats.emit({
+              //     'id': this.namespace + '/' + this.trackName,
+              //     'firstChunkAts': firstChunkAts
+              //   })
+              // }
               // Download is sequential
               if (orderedAudioData.isDisco) {
                   console.warn(`AUDIO DISCO detected in seqId: ${orderedAudioData.seqId}`);
@@ -751,22 +753,22 @@ export class PersonComponent implements OnInit, OnChanges {
               } else {
                   // Adds pts to wallClk info
                   this.latencyAudioChecker!.AddItem({ ts: orderedAudioData.chunk.timestamp, clkms: orderedAudioData.extraData.captureClkms});
-                  this.timingInfo.muxer.currentAudioTs = orderedAudioData.chunk.timestamp;
-                  const currentChunkATS =  (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
-                  this.stats.emit({
-                    'id': this.namespace + '/' + this.trackName,
-                    'currentChunkATS': currentChunkATS
-                  })
+                  //this.timingInfo.muxer.currentAudioTs = orderedAudioData.chunk.timestamp;
+                  // const currentChunkATS =  (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
+                  // this.stats.emit({
+                  //   'id': this.namespace + '/' + this.trackName,
+                  //   'currentChunkATS': currentChunkATS
+                  // })
                   this.audioDecoderWorker.postMessage({ type: "audiochunk", seqId: orderedAudioData.seqId, chunk: orderedAudioData.chunk, metadata: orderedAudioData.extraData.metadata, isDisco: orderedAudioData.isDisco });
               }
           }
-          const audioJitterStats = this.wtAudioJitterBuffer.GetStats()
-          this.stats.emit({
-            'id': this.namespace + '/' + this.trackName,
-            'audioJitterCurrentMaxSize': audioJitterStats.currentMaSizeMs,
-            'audioJitterSize':  audioJitterStats.size,
-            'audioJitterGaps': `${audioJitterStats.numTotalGaps} (${audioJitterStats.numTotalLostStreams} streams lost)`
-          });
+          // const audioJitterStats = this.wtAudioJitterBuffer.GetStats()
+          // this.stats.emit({
+          //   'id': this.namespace + '/' + this.trackName,
+          //   'audioJitterCurrentMaxSize': audioJitterStats.currentMaSizeMs,
+          //   'audioJitterSize':  audioJitterStats.size,
+          //   'audioJitterGaps': `${audioJitterStats.numTotalGaps} (${audioJitterStats.numTotalLostStreams} streams lost)`
+          // });
       }
       // FRAME
     } else if (e.data.type === "aframe") {
@@ -780,16 +782,16 @@ export class PersonComponent implements OnInit, OnChanges {
       this.buffersInfo.decoder.audio.size = e.data.queueSize;
       this.buffersInfo.decoder.audio.lengthMs = e.data.queueLengthMs;
 
-      const currentFrameATS = (this.timingInfo.decoder.currentAudioTs / 1000).toFixed(0)
-      const currentDecoABuffer = `${this.buffersInfo.decoder.audio.size} (${this.buffersInfo.decoder.audio.lengthMs.toFixed(0)} ms)`
-      const currentDecoCompAOffset = `${(this.buffersInfo.decoder.audio.timestampCompensationOffset / 1000).toFixed(0)} ms`;
+      // const currentFrameATS = (this.timingInfo.decoder.currentAudioTs / 1000).toFixed(0)
+      // const currentDecoABuffer = `${this.buffersInfo.decoder.audio.size} (${this.buffersInfo.decoder.audio.lengthMs.toFixed(0)} ms)`
+      // const currentDecoCompAOffset = `${(this.buffersInfo.decoder.audio.timestampCompensationOffset / 1000).toFixed(0)} ms`;
 
-      this.stats.emit({
-        'id': this.namespace + '/' + this.trackName,
-        'currentFrameATS': currentFrameATS,
-        'currentDecoABuffer': currentDecoABuffer,
-        'currentDecoCompAOffset': currentDecoCompAOffset
-      })
+      // this.stats.emit({
+      //   'id': this.namespace + '/' + this.trackName,
+      //   'currentFrameATS': currentFrameATS,
+      //   'currentDecoABuffer': currentDecoABuffer,
+      //   'currentDecoCompAOffset': currentDecoCompAOffset
+      // })
 
       if (this.audioCtx == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
           // Initialize the audio when we know sampling freq used in the capture
@@ -802,7 +804,9 @@ export class PersonComponent implements OnInit, OnChanges {
 
           this.audioSharedBuffer = new CicularAudioSharedBuffer();
           this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
-          this.audioSharedBuffer.SetCallbacks(this.playerUpdateDroppedFrame);
+          this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
+            console.debug('audioSharedBuffer dropped aFrame data: ', droppedFrameData)
+          });
           // Set the audio context sampling freq, and pass buffers
           this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
       }
@@ -824,13 +828,13 @@ export class PersonComponent implements OnInit, OnChanges {
       this.buffersInfo.decoder.video.size = e.data.queueSize;
       this.buffersInfo.decoder.video.lengthMs = e.data.queueLengthMs;
 
-      const currentFrameVTS = (this.timingInfo.decoder.currentVideoTs / 1000).toFixed(0)
-      const currentDecoVBuffer = `${this.buffersInfo.decoder.video.size} (${this.buffersInfo.decoder.video.lengthMs.toFixed(0)} ms)`
-      this.stats.emit({
-        'id': this.namespace + '/' + this.trackName,
-        'currentFrameVTS': currentFrameVTS,
-        'currentDecoVBuffer': currentDecoVBuffer
-      })
+      // const currentFrameVTS = (this.timingInfo.decoder.currentVideoTs / 1000).toFixed(0)
+      // const currentDecoVBuffer = `${this.buffersInfo.decoder.video.size} (${this.buffersInfo.decoder.video.lengthMs.toFixed(0)} ms)`
+      // this.stats.emit({
+      //   'id': this.namespace + '/' + this.trackName,
+      //   'currentFrameVTS': currentFrameVTS,
+      //   'currentDecoVBuffer': currentDecoVBuffer
+      // })
 
       if (this.videoRendererBuffer != null && this.videoRendererBuffer.AddItem(vFrame) === false) {
           console.warn("Dropped video frame because video renderer is full");
@@ -839,12 +843,12 @@ export class PersonComponent implements OnInit, OnChanges {
 
     // Downloader STATS
     } else if (e.data.type === "downloaderstats") {
-      const downloaderData = e.data.data;
-      console.debug('Downloader stats data: ', downloaderData)
+      console.debug('Downloader stats data: ', e.data.data)
 
     // Dropped
     } else if (e.data.type === "dropped") {
-      this.playerUpdateDroppedFrame(e.data.data)
+      console.debug('dropped: ', e.data )
+      //this.playerUpdateDroppedFrame(e.data.data)
     // UNKNOWN
     } else {
       console.error("unknown message: " + JSON.stringify(e.data));
@@ -896,16 +900,16 @@ export class PersonComponent implements OnInit, OnChanges {
           this.buffersInfo.renderer.audio.state = this.AUDIO_PLAYING;
       }
 
-      const currentRendererATS = (this.timingInfo.renderer.currentAudioTs / 1000).toFixed(0);
-      const bufferAudio = this.buffersInfo.renderer.audio;
-      const currentRendererABuffer = `${bufferAudio.size} samples (${bufferAudio.lengthMs.toFixed(0)} ms) - Max: ${this.buffersInfo.renderer.audio.sizeMs} ms`;
-      const currentRendererASilenceInserted =  data.totalSilenceInsertedMs.toFixed(0);
-      this.stats.emit({
-        'id': this.namespace + '/' + this.trackName,
-        'currentRendererATS': currentRendererATS,
-        'currentRendererABuffer': currentRendererABuffer,
-        'currentRendererASilenceInserted': currentRendererASilenceInserted
-      });
+      // const currentRendererATS = (this.timingInfo.renderer.currentAudioTs / 1000).toFixed(0);
+      // const bufferAudio = this.buffersInfo.renderer.audio;
+      // const currentRendererABuffer = `${bufferAudio.size} samples (${bufferAudio.lengthMs.toFixed(0)} ms) - Max: ${this.buffersInfo.renderer.audio.sizeMs} ms`;
+      // const currentRendererASilenceInserted =  data.totalSilenceInsertedMs.toFixed(0);
+      // this.stats.emit({
+      //   'id': this.namespace + '/' + this.trackName,
+      //   'currentRendererATS': currentRendererATS,
+      //   'currentRendererABuffer': currentRendererABuffer,
+      //   'currentRendererASilenceInserted': currentRendererASilenceInserted
+      // });
 
       if (this.buffersInfo.renderer.audio.lengthMs >= this.playerBufferMs! && this.buffersInfo.renderer.audio.state === this.AUDIO_STOPPED) {
         this.audioSharedBuffer.Play();
@@ -921,53 +925,53 @@ export class PersonComponent implements OnInit, OnChanges {
             const compensatedAudioTS = Math.max(0, this.timingInfo.renderer.currentAudioTs - (this.systemAudioLatencyMs * 1000));
             const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
             if (retData.vFrame != null) {
+                this.playerSetVideoSize(retData.vFrame);
                 if (!this.videoFramePrinted) {
                   this.videoFramePrinted = true;
                   this.ref.detectChanges();
                 }
-                this.playerSetVideoSize(retData.vFrame);
                 this.videoPlayerCtx?.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
                 this.timingInfo.renderer.currentVideoTs = (retData.vFrame as VideoFrame).timestamp;
                 this.buffersInfo.renderer.video.size = retData.queueSize;
                 this.buffersInfo.renderer.video.lengthMs = retData.queueLengthMs;
-                if (this.latencyVideoChecker != null) {
-                    const frameClosestData = this.latencyVideoChecker.GetItemByTs(this.timingInfo.renderer.currentVideoTs, true);
-                    if (frameClosestData.valid) {
-                        const currentLatencyMs = (Date.now() - Number(frameClosestData.clkms));
-                        this.stats.emit({
-                          'id': this.namespace + '/' + this.trackName,
-                          'latencyVideoMs': currentLatencyMs
-                        });
-                    }
-                }
+                //if (this.latencyVideoChecker != null) {
+                    // const frameClosestData = this.latencyVideoChecker.GetItemByTs(this.timingInfo.renderer.currentVideoTs, true);
+                    // if (frameClosestData.valid) {
+                    //     const currentLatencyMs = (Date.now() - Number(frameClosestData.clkms));
+                    //     this.stats.emit({
+                    //       'id': this.namespace + '/' + this.trackName,
+                    //       'latencyVideoMs': currentLatencyMs
+                    //     });
+                    // }
+                //}
                 (retData.vFrame as VideoFrame).close();
             } else {
                 console.debug("NO FRAME to paint");
             }
-            const currentRendererVTS = (this.timingInfo.renderer.currentVideoTs  / 1000).toFixed(0);
-            const bufferInfo = this.buffersInfo.renderer.video
-            const currentRendererVBuffer = `${bufferInfo.size} (${bufferInfo.lengthMs.toFixed(0)} ms)`
-            const currentRendererVDiscarded = retData.totalDiscarded.toFixed(0);
-            this.stats.emit( {
-              'id': this.namespace + '/' + this.trackName,
-              'currentRendererVTS': currentRendererVTS,
-              'currentRendererVBuffer': currentRendererVBuffer,
-              'currentRendererVDiscarded': currentRendererVDiscarded
-            });
+            // const currentRendererVTS = (this.timingInfo.renderer.currentVideoTs  / 1000).toFixed(0);
+            // const bufferInfo = this.buffersInfo.renderer.video
+            // const currentRendererVBuffer = `${bufferInfo.size} (${bufferInfo.lengthMs.toFixed(0)} ms)`
+            // const currentRendererVDiscarded = retData.totalDiscarded.toFixed(0);
+            // this.stats.emit( {
+            //   'id': this.namespace + '/' + this.trackName,
+            //   'currentRendererVTS': currentRendererVTS,
+            //   'currentRendererVBuffer': currentRendererVBuffer,
+            //   'currentRendererVDiscarded': currentRendererVDiscarded
+            // });
         }
     }
 
-    if (this.latencyAudioChecker != null) {
-        const frameClosestData = this.latencyAudioChecker.GetItemByTs(Math.floor(this.timingInfo.renderer.currentAudioTs), false);
-        if (frameClosestData.valid) {
-            const currentLatencyMs = this.systemAudioLatencyMs + (Date.now() - Number(frameClosestData.clkms));
-            const latencyAudioMs =  `${currentLatencyMs.toFixed(0)} ms (System: ${this.systemAudioLatencyMs.toFixed(0)} ms)`;
-            this.stats.emit({
-              'id': this.namespace + '/' + this.trackName,
-              'latencyAudioMs': latencyAudioMs
-            });
-        }
-    }
+    // if (this.latencyAudioChecker != null) {
+    //     const frameClosestData = this.latencyAudioChecker.GetItemByTs(Math.floor(this.timingInfo.renderer.currentAudioTs), false);
+    //     if (frameClosestData.valid) {
+    //          const currentLatencyMs = this.systemAudioLatencyMs + (Date.now() - Number(frameClosestData.clkms));
+    //         const latencyAudioMs =  `${currentLatencyMs.toFixed(0)} ms (System: ${this.systemAudioLatencyMs.toFixed(0)} ms)`;
+    //         this.stats.emit({
+    //           'id': this.namespace + '/' + this.trackName,
+    //           'latencyAudioMs': latencyAudioMs
+    //         });
+    //     }
+    // }
     this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
 
   }
