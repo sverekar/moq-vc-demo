@@ -2,7 +2,7 @@
   <h4 class="label" style="font-size: 14pt;display:inline-block;">Player Stats</h4>
   <button type="button" class="btn btn-outline-info btn-sm" style="float: right;" (click)="hideStats = !hideStats"> Show/Hide </button>
   <div [hidden]="hideStats">
-    <div style="margin-top: 10px;" [hidden]="displayStats">
+    <div style="margin-top: 10px;" [hidden]="hideStats">
       <select #mySelect class="input-group-text form-select" (ngModelChange)="onSubsStatsSelectionChange($event)"
       style="font-size: smaller; text-align: left; height: 30px; margin-top: 10px;">
       <option *ngFor="let recipient of subscriberStats | keyvalue" [ngValue]="recipient.key">

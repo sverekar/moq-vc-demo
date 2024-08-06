@@ -198,7 +198,6 @@
     <!-- Me -->
     <app-person
         (publish)="readyToPublish = true;"
-        (stats)="announcerStats($event)"
         [url]="wtServerUrl"
         [auth]="authInfo"
         [namespace]="meNamespace"
@@ -210,8 +209,7 @@
     </app-person>
 
     <!-- Multiple subscribers -->
-    <app-person *ngFor="let info of subscriptionList;"
-      (stats)="subscribersStats($event)"
+    <app-person *ngFor="let info of subscriptionList; trackBy: getPersonId"
       [url]="wtServerUrl"
       [auth]="authInfo"
       [namespace]="info.namespace"

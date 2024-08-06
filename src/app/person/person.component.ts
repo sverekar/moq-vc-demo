@@ -34,9 +34,7 @@ export class PersonComponent implements OnInit, OnChanges {
   @Input() resolution!: { width: number; height: number; fps: number; level: number; }
 
   @Output() stats = new EventEmitter<any>();
-
   @Output() destroy = new EventEmitter<string>()
-
   @Output() publish = new EventEmitter<boolean>()
 
   @ViewChild('videoplayer', { static: false }) videoPlayer!: ElementRef;
@@ -971,6 +969,7 @@ export class PersonComponent implements OnInit, OnChanges {
         }
     }
     this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
+
   }
 
   private playerSetVideoSize(vFrame: VideoFrame) {

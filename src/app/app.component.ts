@@ -1,5 +1,5 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, inject, NgZone, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, inject, NgZone, OnInit, Output, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
 import { NgbActiveModal, NgbModal, NgbModule } from '@ng-bootstrap/ng-bootstrap';
@@ -7,6 +7,7 @@ import { from } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { AnnounceStatsComponent } from './announce-stats/announce-stats.component';
 import { SubscriberStatsComponent } from './subscriber-stats/subscriber-stats.component';
+
 
 @Component({
   selector: 'app-root',
@@ -49,7 +50,7 @@ export class AppComponent implements OnInit {
 
   // Subscriver player configuration
   playerBufferMs: number = 100
-  playerMaxBufferMs: number = 300
+  playerMaxBufferMs: number = 1000
   audioJitterBufferMs: number = 200
   videoJitterBufferMs: number = 100
 
@@ -177,7 +178,9 @@ export class AppComponent implements OnInit {
 
   destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
-    this.subsbcriberStats.clearSubscriberStats(id);
+    this.ngZone.runOutsideAngular(() => {
+      this.subsbcriberStats.clearSubscriberStats(id);
+    })
   }
 
   announcerStats(data: any) {
@@ -214,4 +217,5 @@ export class AppComponent implements OnInit {
 export class NgbdModalConfirm {
 	modal = inject(NgbActiveModal);
 }
+
 
