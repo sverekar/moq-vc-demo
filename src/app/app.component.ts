@@ -50,7 +50,7 @@ export class AppComponent implements OnInit {
 
   // Subscriver player configuration
   playerBufferMs: number = 200
-  playerMaxBufferMs: number = 1000
+  playerMaxBufferMs: number = 300
   audioJitterBufferMs: number = 200
   videoJitterBufferMs: number = 100
 

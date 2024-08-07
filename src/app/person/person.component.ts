@@ -51,7 +51,7 @@ export class PersonComponent implements OnInit, OnChanges {
   private VERBOSE = true;
   private AUDIO_STOPPED = 0;
   private AUDIO_PLAYING = 1;
-  private RENDER_VIDEO_EVERY_MS = 20;
+  private RENDER_VIDEO_EVERY_MS = 10;
 
   private videoEncoderConfig = {
     encoderConfig: {
@@ -471,13 +471,13 @@ export class PersonComponent implements OnInit, OnChanges {
 
     // LOGGING
     if ((e.data.type === "debug") && (this.VERBOSE === true)) {
-      //  console.debug(e.data.data);
+      console.debug(e.data.data);
     } else if (e.data.type === "info") {
-      //  console.log(e.data.data);
+      console.log(e.data.data);
     } else if (e.data.type === "error") {
-        console.error(e.data.data);
+      console.error(e.data.data);
     } else if (e.data.type === "warning") {
-      //  console.warn(e.data.data);
+      console.warn(e.data.data);
     // ENCODING
     } else if (e.data.type === "vframe") {
         const vFrame = e.data.data;
@@ -534,7 +534,7 @@ export class PersonComponent implements OnInit, OnChanges {
     // DROPPED frames by encoders
     } else if (e.data.type === "dropped") {
 
-      console.debug('dropped: ',e.data);
+      console.debug('dropped frame: ',e.data.data.msg);
       // As of now, just logging the dropped frame.
       // const droppedFrameData = e.data.data;
       // const mediaType = droppedFrameData.mediaType;
@@ -595,7 +595,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
     // CHUNKS STATS
     } else if (e.data.type === "sendstats") {
-      console.debug('sendstats: ', e.data);
+      console.debug('sendstats: ', e.data.inFlightReq);
       // const inFlightReq = e.data.inFlightReq;
       // this.stats.emit({
       //   'uploadStatsAudioInflight': `${inFlightReq['audio']} (${this.returnMax('inFlightAudioReqNum', inFlightReq["audio"])})`,
@@ -603,7 +603,7 @@ export class PersonComponent implements OnInit, OnChanges {
       // })
     // UNKNOWN
     } else {
-        console.error("unknown message: " + e.data);
+        console.error("unknown message: ", e.data);
     }
   }
 
@@ -652,20 +652,20 @@ export class PersonComponent implements OnInit, OnChanges {
     this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
     this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
-    this.playerAudioTimestamps = this.playerAudioTimestamps.bind(this);
     //this.playerUpdateDroppedFrame = this.playerUpdateDroppedFrame.bind(this);
+    const self =  this;
 
     this.ngZone.runOutsideAngular(() => {
-      this.muxerDownloaderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.playerProcessWorkerMessage(e);
+      self.muxerDownloaderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        self.playerProcessWorkerMessage(e);
       });
-      this.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.playerProcessWorkerMessage(e);
+      self.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        self.playerProcessWorkerMessage(e);
       });
-      this.audioDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        this.playerProcessWorkerMessage(e);
+      self.audioDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        self.playerProcessWorkerMessage(e);
       });
-    })
+    });
 
     this.downloaderConfig.urlHostPort = this.url;
     this.downloaderConfig.moqTracks["video"].namespace = this.namespace;
@@ -682,13 +682,13 @@ export class PersonComponent implements OnInit, OnChanges {
   private async playerProcessWorkerMessage(e: MessageEvent<any>) {
 
     if ((e.data.type === "debug") && (this.VERBOSE === true)) {
-     // console.debug(e.data.data);
+      console.debug(e.data.data);
     } else if (e.data.type === "info") {
-     // console.log(e.data.data);
+      console.log(e.data.data);
     } else if (e.data.type === "error") {
       console.error(e.data.data);
     } else if (e.data.type === "warning") {
-     // console.warn(e.data.data);
+      console.warn(e.data.data);
     // CHUNKS
     } else if (e.data.type === "videochunk") {
       const chunk = e.data.chunk;
@@ -713,7 +713,7 @@ export class PersonComponent implements OnInit, OnChanges {
               } else {
                   // Adds pts to wallClk info
                   this.latencyVideoChecker!.AddItem({ ts: orderedVideoData.chunk.timestamp, clkms: orderedVideoData.extraData.captureClkms});
-                  //this.timingInfo.muxer.currentVideoTs = orderedVideoData.chunk.timestamp;
+                  this.timingInfo.muxer.currentVideoTs = orderedVideoData.chunk.timestamp;
                   // const currentChunkVTS =  (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
                   // this.stats.emit({
                   //   'id': this.namespace + '/' + this.trackName,
@@ -753,7 +753,7 @@ export class PersonComponent implements OnInit, OnChanges {
               } else {
                   // Adds pts to wallClk info
                   this.latencyAudioChecker!.AddItem({ ts: orderedAudioData.chunk.timestamp, clkms: orderedAudioData.extraData.captureClkms});
-                  //this.timingInfo.muxer.currentAudioTs = orderedAudioData.chunk.timestamp;
+                  this.timingInfo.muxer.currentAudioTs = orderedAudioData.chunk.timestamp;
                   // const currentChunkATS =  (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
                   // this.stats.emit({
                   //   'id': this.namespace + '/' + this.trackName,
@@ -805,7 +805,7 @@ export class PersonComponent implements OnInit, OnChanges {
           this.audioSharedBuffer = new CicularAudioSharedBuffer();
           this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
           this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
-            console.debug('audioSharedBuffer dropped aFrame data: ', droppedFrameData)
+            console.warn('audioSharedBuffer dropped aFrame data: ', droppedFrameData)
           });
           // Set the audio context sampling freq, and pass buffers
           this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
@@ -815,10 +815,10 @@ export class PersonComponent implements OnInit, OnChanges {
           // Uses compensated TS
           this.audioSharedBuffer.Add(aFrame, this.timingInfo.decoder.currentAudioTs);
           if (this.animFrame === null) {
-            this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
-            // this.ngZone.runOutsideAngular(() => {
-            //   this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
-            // })
+            //this.animFrame = requestAnimationFrame(this.playerAudioTimestamps.bind(this));
+            this.ngZone.runOutsideAngular(() => {
+              this.animFrame = requestAnimationFrame(this.playerAudioTimestamps.bind(this));
+            })
           }
       }
     } else if (e.data.type === "vframe") {
@@ -847,7 +847,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
     // Dropped
     } else if (e.data.type === "dropped") {
-      console.debug('dropped: ', e.data )
+      console.warn('dropped frame: ', e.data.data.msg)
       //this.playerUpdateDroppedFrame(e.data.data)
     // UNKNOWN
     } else {
@@ -934,16 +934,16 @@ export class PersonComponent implements OnInit, OnChanges {
                 this.timingInfo.renderer.currentVideoTs = (retData.vFrame as VideoFrame).timestamp;
                 this.buffersInfo.renderer.video.size = retData.queueSize;
                 this.buffersInfo.renderer.video.lengthMs = retData.queueLengthMs;
-                //if (this.latencyVideoChecker != null) {
-                    // const frameClosestData = this.latencyVideoChecker.GetItemByTs(this.timingInfo.renderer.currentVideoTs, true);
-                    // if (frameClosestData.valid) {
+                if (this.latencyVideoChecker != null) {
+                    const frameClosestData = this.latencyVideoChecker.GetItemByTs(this.timingInfo.renderer.currentVideoTs, true);
+                    if (frameClosestData.valid) {
                     //     const currentLatencyMs = (Date.now() - Number(frameClosestData.clkms));
                     //     this.stats.emit({
                     //       'id': this.namespace + '/' + this.trackName,
                     //       'latencyVideoMs': currentLatencyMs
                     //     });
-                    // }
-                //}
+                    }
+                }
                 (retData.vFrame as VideoFrame).close();
             } else {
                 console.debug("NO FRAME to paint");
@@ -961,19 +961,18 @@ export class PersonComponent implements OnInit, OnChanges {
         }
     }
 
-    // if (this.latencyAudioChecker != null) {
-    //     const frameClosestData = this.latencyAudioChecker.GetItemByTs(Math.floor(this.timingInfo.renderer.currentAudioTs), false);
-    //     if (frameClosestData.valid) {
-    //          const currentLatencyMs = this.systemAudioLatencyMs + (Date.now() - Number(frameClosestData.clkms));
-    //         const latencyAudioMs =  `${currentLatencyMs.toFixed(0)} ms (System: ${this.systemAudioLatencyMs.toFixed(0)} ms)`;
-    //         this.stats.emit({
-    //           'id': this.namespace + '/' + this.trackName,
-    //           'latencyAudioMs': latencyAudioMs
-    //         });
-    //     }
-    // }
-    this.animFrame = requestAnimationFrame(this.playerAudioTimestamps);
-
+    if (this.latencyAudioChecker != null) {
+        const frameClosestData = this.latencyAudioChecker.GetItemByTs(Math.floor(this.timingInfo.renderer.currentAudioTs), false);
+        if (frameClosestData.valid) {
+        //      const currentLatencyMs = this.systemAudioLatencyMs + (Date.now() - Number(frameClosestData.clkms));
+        //     const latencyAudioMs =  `${currentLatencyMs.toFixed(0)} ms (System: ${this.systemAudioLatencyMs.toFixed(0)} ms)`;
+        //     this.stats.emit({
+        //       'id': this.namespace + '/' + this.trackName,
+        //       'latencyAudioMs': latencyAudioMs
+        //     });
+        }
+    }
+    this.animFrame = requestAnimationFrame(this.playerAudioTimestamps.bind(this));
   }
 
   private playerSetVideoSize(vFrame: VideoFrame) {
