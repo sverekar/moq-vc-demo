@@ -23,21 +23,21 @@ let insertNextKeyframe = false
 const initVideoEncoder = {
   output: handleChunk,
   error: (e) => {
-    if (workerState === StateEnum.Created) {
-      console.error(e.message)
-    } else {
-      sendMessageToMain(WORKER_PREFIX, 'error', e.message)
-    }
+    console.error(e.message)
+    // if (workerState === StateEnum.Created) {
+    //   console.error(e.message)
+    // } else {
+    //   sendMessageToMain(WORKER_PREFIX, 'error', e.message)
+    // }
   }
 }
 
 let vEncoder = null
 
 function handleChunk (chunk, metadata) {
+
   const msg = { type: 'vchunk', seqId: chunkDeliveredCounter++, chunk, metadata: serializeMetadata(metadata) }
-
-  sendMessageToMain(WORKER_PREFIX, 'debug', 'Chunk created. sId: ' + msg.seqId + ', Timestamp: ' + chunk.timestamp + ', dur: ' + chunk.duration + ', type: ' + chunk.type + ', size: ' + chunk.byteLength)
-
+  // sendMessageToMain(WORKER_PREFIX, 'debug', 'Chunk created. sId: ' + msg.seqId + ', Timestamp: ' + chunk.timestamp + ', dur: ' + chunk.duration + ', type: ' + chunk.type + ', size: ' + chunk.byteLength)
   self.postMessage(msg)
 }
 
@@ -47,21 +47,23 @@ self.addEventListener('message', async function (e) {
   }
 
   if (workerState === StateEnum.Stopped) {
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
+    console.log(WORKER_PREFIX + ' Encoder is stopped it does not accept messages')
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
     return
   }
 
   const type = e.data.type
   if (type === 'stop') {
+
     workerState = StateEnum.Stopped
     // Make sure all requests has been processed
     await vEncoder.flush()
-
     vEncoder.close()
-    workerState = StateEnum.Stopped
+    console.log(WORKER_PREFIX + ' Encoder is stopped!!')
     return
   }
   if (type === 'vencoderini') {
+
     const encoderConfig = e.data.encoderConfig
 
     // eslint-disable-next-line no-undef
@@ -74,13 +76,14 @@ self.addEventListener('message', async function (e) {
     if ('keyframeEvery' in e.data) {
       keyframeEvery = e.data.keyframeEvery
     }
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder initialized')
-
+    console.log(WORKER_PREFIX + 'Encoder initialized');
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder initialized')
     workerState = StateEnum.Running
     return
   }
   if (type !== 'vframe') {
-    sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
+    console.error(WORKER_PREFIX + 'Invalid message received');
+    // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
     return
   }
 
@@ -88,7 +91,8 @@ self.addEventListener('message', async function (e) {
 
   if (vEncoder.encodeQueueSize > encoderMaxQueueSize) {
     // Too many frames in the encoder queue, encoder is overwhelmed let's not add this frame
-    sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), ts: vFrame.timestamp, msg: 'Dropped encoding video frame' })
+    console.debug(WORKER_PREFIX + 'Dropped encoding video frame due to encodeQueueSize is full');
+    // sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), ts: vFrame.timestamp, msg: 'Dropped encoding video frame' })
     vFrame.close()
     // Insert a keyframe after dropping
     insertNextKeyframe = true
@@ -97,7 +101,7 @@ self.addEventListener('message', async function (e) {
     const insertKeyframe = (frameNum % keyframeEvery) === 0 || (insertNextKeyframe === true)
     vEncoder.encode(vFrame, { keyFrame: insertKeyframe })
     vFrame.close()
-    sendMessageToMain(WORKER_PREFIX, 'debug', 'Encoded frame: ' + frameNum + ', key: ' + insertKeyframe)
+    // sendMessageToMain(WORKER_PREFIX, 'debug', 'Encoded frame: ' + frameNum + ', key: ' + insertKeyframe)
     insertNextKeyframe = false
     frameDeliveredCounter++
   }

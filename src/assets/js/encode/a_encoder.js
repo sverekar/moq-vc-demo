@@ -25,17 +25,19 @@ let lastAudioMetadata
 const initAudioEncoder = {
   output: handleChunk,
   error: (e) => {
-    if (workerState === StateEnum.Created) {
-      console.error(e.message)
-    } else {
-      sendMessageToMain(WORKER_PREFIX, 'error', e.message)
-    }
+    console.error(e.message)
+    // if (workerState === StateEnum.Created) {
+    //   console.error(e.message)
+    // } else {
+    //   sendMessageToMain(WORKER_PREFIX, 'error', e.message)
+    // }
   }
 }
 
 let aEncoder = null
 
 function handleChunk (chunk, metadata) {
+
   // Save last metadata and insert it if it is new
   let insertMetadata
   if (isMetadataValid(metadata)) {
@@ -49,8 +51,8 @@ function handleChunk (chunk, metadata) {
   }
 
   const msg = { type: 'achunk', seqId: chunkDeliveredCounter++, chunk, metadata: serializeMetadata(insertMetadata) }
-  sendMessageToMain(WORKER_PREFIX, 'debug', 'Chunk created. sId: ' + msg.seqId + ', Timestamp: ' + chunk.timestamp + ', dur: ' + chunk.duration + ', type: ' + chunk.type + ', size: ' + chunk.byteLength)
-
+  // console.log(WORKER_PREFIX + ` seqId: ${chunkDeliveredCounter}`, insertMetadata)
+  // sendMessageToMain(WORKER_PREFIX, 'debug', 'Chunk created. sId: ' + msg.seqId + ', Timestamp: ' + chunk.timestamp + ', dur: ' + chunk.duration + ', type: ' + chunk.type + ', size: ' + chunk.byteLength)
   self.postMessage(msg)
 }
 
@@ -60,36 +62,40 @@ self.addEventListener('message', async function (e) {
   }
 
   if (workerState === StateEnum.Stopped) {
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
+    console.log(WORKER_PREFIX + ' Encoder is stopped it does not accept messages')
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
     return
   }
 
   const type = e.data.type
   if (type === 'stop') {
+
     workerState = StateEnum.Stopped
     // Make sure all requests has been processed
     await aEncoder.flush()
-
     aEncoder.close()
-
     lastAudioMetadata = undefined
+    console.log(WORKER_PREFIX + ' Encoder is stopped!!')
     return
   }
   if (type === 'aencoderini') {
-    const encoderConfig = e.data.encoderConfig
 
+    const encoderConfig = e.data.encoderConfig
     // eslint-disable-next-line no-undef
     aEncoder = new AudioEncoder(initAudioEncoder)
-
     aEncoder.configure(encoderConfig)
     if ('encoderMaxQueueSize' in e.data) {
       encoderMaxQueueSize = e.data.encoderMaxQueueSize
     }
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder initialized')
+    console.log(WORKER_PREFIX + 'Encoder initialized');
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder initialized')
+    workerState = StateEnum.Running
     return
   }
+
   if (type !== 'aframe') {
-    sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
+    console.error(WORKER_PREFIX + 'Invalid message received');
+    // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
     return
   }
 
@@ -97,11 +103,11 @@ self.addEventListener('message', async function (e) {
 
   if (aEncoder.encodeQueueSize > encoderMaxQueueSize) {
     // Too many frames in the encoder, encoder is overwhelmed let's drop this frame.
-    sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), ts: aFrame.timestamp, msg: 'Dropped encoding audio frame' })
+    // sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), ts: aFrame.timestamp, msg: 'Dropped encoding audio frame' })
+    console.debug(WORKER_PREFIX + 'Dropped encoding audio frame due to encodeQueueSize is full');
     aFrame.close()
   } else {
-    sendMessageToMain(WORKER_PREFIX, 'debug', 'Send to encode frame ts: ' + aFrame.timestamp + '. Counter: ' + frameDeliveredCounter++)
-
+    // sendMessageToMain(WORKER_PREFIX, 'debug', 'Send to encode frame ts: ' + aFrame.timestamp + '. Counter: ' + frameDeliveredCounter++)
     aEncoder.encode(aFrame)
     aFrame.close()
   }

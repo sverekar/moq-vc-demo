@@ -1,13 +1,10 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, EventEmitter, inject, NgZone, OnInit, Output, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, inject, NgZone, OnInit, Output, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
 import { NgbActiveModal, NgbModal, NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { from } from 'rxjs';
 import { PersonComponent } from './person/person.component';
-import { AnnounceStatsComponent } from './announce-stats/announce-stats.component';
-import { SubscriberStatsComponent } from './subscriber-stats/subscriber-stats.component';
-
 
 @Component({
   selector: 'app-root',
@@ -17,9 +14,7 @@ import { SubscriberStatsComponent } from './subscriber-stats/subscriber-stats.co
     FormsModule,
     CommonModule,
     RouterOutlet,
-    PersonComponent,
-    AnnounceStatsComponent,
-    SubscriberStatsComponent
+    PersonComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -48,9 +43,9 @@ export class AppComponent implements OnInit {
   audioSources: {deviceId: string, label: string} | undefined;
   audioEncodingBitrateBps: number = 32000;
 
-  // Subscriver player configuration
-  playerBufferMs: number = 200
-  playerMaxBufferMs: number = 300
+  // Subscriber player configuration
+  playerBufferMs: number = 100
+  playerMaxBufferMs: number = 200
   audioJitterBufferMs: number = 200
   videoJitterBufferMs: number = 100
 
@@ -62,16 +57,16 @@ export class AppComponent implements OnInit {
   readyToPublish: boolean = false;
   isAnnounce: boolean = true;
 
+  private animFrame: number | undefined = undefined;
+  private RENDER_VIDEO_EVERY_MS = 10;
+  private wcLastRender: number = 0;
+
   private modalService = inject(NgbModal);
 
   // Announcer video view
   @ViewChild('me', { static: true }) me!: PersonComponent;
 
-  // Announcer stats view
-  // @ViewChild('meStats', { static: true }) announceStats!: AnnounceStatsComponent;
-
-  // Subscribers stats view
-  // @ViewChild('subscriberStats', { static: true }) subsbcriberStats!: SubscriberStatsComponent;
+  @ViewChildren('subsriber') subscribers!: QueryList<PersonComponent>;
 
   constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone) {
 
@@ -140,6 +135,10 @@ export class AppComponent implements OnInit {
   }
 
   subscribePeer(): void {
+    if (this.subscriptionList.length === 0) {
+      this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
+    }
+
     this.subscriptionList.push({
       id: this.peerNamespace + '/' + this.trackName,
       namespace: this.peerNamespace,
@@ -163,7 +162,6 @@ export class AppComponent implements OnInit {
         }
     } else {
 
-      //this.announceStats.clearAnounceStats();
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
       // Run outside of angular scope to avoid performance issue.
       this.ngZone.runOutsideAngular(() => {
@@ -178,21 +176,29 @@ export class AppComponent implements OnInit {
 
   destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
-    // this.ngZone.runOutsideAngular(() => {
-    //   this.subsbcriberStats.clearSubscriberStats(id);
-    // })
+    if (this.subscriptionList.length === 0 ) {
+      if (this.animFrame) {
+        cancelAnimationFrame(this.animFrame)
+      }
+    }
   }
-
-  // announcerStats(data: any) {
-  //   this.announceStats.updateAnounceStats(data);
-  // }
-
-  // subscribersStats(data: any) {
-  //   this.subsbcriberStats.updateSubscriberStats(data);
-  // }
 
   getPersonId(index: number, item: any){
     return item.id;
+  }
+
+  handleVideoAnimationPlay(wcTimestamp: number) {
+    const wcInterval = wcTimestamp - this.wcLastRender;
+    if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
+      this.wcLastRender = wcTimestamp;
+      for (let i= 0; i < this.subscribers.length; ++i) {
+        const c = this.subscribers.get(i);
+        if (c) {
+          c.animate();
+        }
+      }
+    }
+    this.animFrame = requestAnimationFrame(this.handleVideoAnimationPlay.bind(this));
   }
 }
 

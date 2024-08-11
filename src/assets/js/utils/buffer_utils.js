@@ -35,7 +35,7 @@ export function concatBuffer (arr) {
 export async function readUntilEof (readableStream, blockSize) {
   const chunkArray = []
   let totalLength = 0
-
+  console.log('block size', blockSize)
   while (true) {
     let bufferChunk = new Uint8Array(blockSize)
     const reader = readableStream.getReader({ mode: 'byob' })
@@ -74,7 +74,7 @@ export async function buffRead (readableStream, size) {
   const reader = readableStream.getReader({ mode: 'byob' })
 
   try {
-    ret = await buffReadFrombyobReader(reader, buff, 0, size)    
+    ret = await buffReadFrombyobReader(reader, buff, 0, size)
   } finally {
     reader.releaseLock()
   }

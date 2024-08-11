@@ -5,7 +5,7 @@ This source code is licensed under the MIT license found in the
 LICENSE file in the root directory of this source tree.
 */
 
-import { sendMessageToMain, StateEnum, deSerializeMetadata } from '../utils/utils.js'
+import { StateEnum, deSerializeMetadata } from '../utils/utils.js'
 import { TsQueue } from '../utils/ts_queue.js'
 
 const WORKER_PREFIX = '[VIDEO-DECO]'
@@ -44,7 +44,8 @@ self.addEventListener('message', async function (e) {
   }
 
   if (workerState === StateEnum.Stopped) {
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
+    console.log(WORKER_PREFIX + ' Decoder is stopped it does not accept messages')
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
     return
   }
 
@@ -61,9 +62,9 @@ self.addEventListener('message', async function (e) {
     workerState = StateEnum.Created
   } else if (type === 'videochunk') {
     if (e.data.metadata !== undefined && e.data.metadata != null) {
-      sendMessageToMain(WORKER_PREFIX, 'debug', `SeqId: ${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: ${e.data.metadata.byteLength}`)
+      // sendMessageToMain(WORKER_PREFIX, 'debug', `SeqId: ${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: ${e.data.metadata.byteLength}`)
       if (videoDecoder != null) {
-        sendMessageToMain(WORKER_PREFIX, 'debug', `SeqId: ${e.data.seqId} Received init, but VideoDecoder already initialized`)
+        // sendMessageToMain(WORKER_PREFIX, 'debug', `SeqId: ${e.data.seqId} Received init, but VideoDecoder already initialized`)
       } else {
         // Initialize video decoder
         // eslint-disable-next-line no-undef
@@ -72,7 +73,8 @@ self.addEventListener('message', async function (e) {
             processVideoFrame(frame)
           },
           error: err => {
-            sendMessageToMain(WORKER_PREFIX, 'error', 'Video decoder. err: ' + err.message)
+            console.error(WORKER_PREFIX + `Video decoder. err: ${err.message}`)
+            // sendMessageToMain(WORKER_PREFIX, 'error', 'Video decoder. err: ' + err.message)
           }
         })
 
@@ -92,21 +94,22 @@ self.addEventListener('message', async function (e) {
 
         workerState = StateEnum.Running
         setWaitForKeyframe(true)
-
-        sendMessageToMain(WORKER_PREFIX, 'info', `SeqId: ${e.data.seqId} Initialized and configured`)
+        console.log(WORKER_PREFIX + ' Initialized and configured')
       }
     } else {
-      sendMessageToMain(WORKER_PREFIX, 'debug', `SeqId: ${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: -`)
+      // sendMessageToMain(WORKER_PREFIX, 'debug', `SeqId: ${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: -`)
     }
 
     if (workerState !== StateEnum.Running) {
-      sendMessageToMain(WORKER_PREFIX, 'warning', 'Received video chunk, but NOT running state')
+      // console.warn(WORKER_PREFIX + ' Received video chunk, but NOT running state')
+      // sendMessageToMain(WORKER_PREFIX, 'warning', 'Received video chunk, but NOT running state')
       return
     }
 
     if (videoDecoder.decodeQueueSize >= maxQueuedChunks) {
       discardedBufferFull++
-      sendMessageToMain(WORKER_PREFIX, 'warning', 'Discarded ' + discardedBufferFull + ' video chunks because decoder buffer is full')
+      console.warn(WORKER_PREFIX + ' Discarded video chunks because decoder buffer is full')
+      // sendMessageToMain(WORKER_PREFIX, 'warning', 'Discarded ' + discardedBufferFull + ' video chunks because decoder buffer is full')
       return
     }
 
@@ -114,6 +117,7 @@ self.addEventListener('message', async function (e) {
 
     // If there is a disco, we need to wait for a new key
     if (e.data.isDisco) {
+      // console.warn(WORKER_PREFIX + ` Disco detected at seqId: ${e.data.seqId}`);
       setWaitForKeyframe(true)
     }
 
@@ -123,23 +127,23 @@ self.addEventListener('message', async function (e) {
       discardedDelta++
     } else {
       if (discardedDelta > 0) {
-        sendMessageToMain(WORKER_PREFIX, 'warning', 'Discarded ' + discardedDelta + ' video chunks before key')
+        console.warn(WORKER_PREFIX + ` Discarded ${discardedDelta} video chunks before key`)
+        // sendMessageToMain(WORKER_PREFIX, 'warning', 'Discarded ' + discardedDelta + ' video chunks before key')
       }
       discardedDelta = 0
       setWaitForKeyframe(false)
-
       ptsQueue.removeUntil(videoDecoder.decodeQueueSize)
       ptsQueue.addToPtsQueue(e.data.chunk.timestamp, e.data.chunk.duration)
       videoDecoder.decode(e.data.chunk)
-
       const decodeQueueInfo = ptsQueue.getPtsQueueLengthInfo()
       if (decodeQueueInfo.lengthMs > MAX_DECODE_QUEUE_SIZE_FOR_WARNING_MS) {
-        sendMessageToMain(WORKER_PREFIX, 'warning', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), videoDecoder: ' + videoDecoder.decodeQueueSize)
+        // sendMessageToMain(WORKER_PREFIX, 'warning', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), videoDecoder: ' + videoDecoder.decodeQueueSize)
       } else {
-        sendMessageToMain(WORKER_PREFIX, 'debug', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), videoDecoder: ' + videoDecoder.decodeQueueSize)
+        // sendMessageToMain(WORKER_PREFIX, 'debug', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), videoDecoder: ' + videoDecoder.decodeQueueSize)
       }
     }
   } else {
-    sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
+    console.error(WORKER_PREFIX + ' Invalid message received')
+    // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
   }
 })

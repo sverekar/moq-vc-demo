@@ -196,7 +196,7 @@
 
   <div class="vc-containers">
     <!-- Me -->
-    <app-person
+    <app-person style="margin-bottom: 5px; min-height: calc(100vw/6);"
         (publish)="readyToPublish = true;"
         [url]="wtServerUrl"
         [auth]="authInfo"
@@ -209,25 +209,19 @@
     </app-person>
 
     <!-- Multiple subscribers -->
-    <app-person *ngFor="let info of subscriptionList; trackBy: getPersonId"
+    <app-person style="margin-bottom: 5px; min-height: calc(100vw/6);" *ngFor="let info of subscriptionList; index as i, trackBy: getPersonId"
       [url]="wtServerUrl"
       [auth]="authInfo"
       [namespace]="info.namespace"
       [self]="false"
+      [index]="i"
       [trackName]="info.trackName"
       [playerBufferMs]="playerBufferMs"
       [playerMaxBufferMs]="playerMaxBufferMs"
       [audioJitterBufferMs]="audioJitterBufferMs"
       [videoJitterBufferMs]="videoJitterBufferMs"
       (destroy)="destroySubscriber($event)"
-      ></app-person>
+      #subsriber>
+    </app-person>
   </div>
-
-  <!-- <div style="display: grid; grid-template-columns: 1fr 2px 1fr;">
-    <app-announce-stats #meStats>
-    </app-announce-stats>
-    <div class="vl"></div>
-    <app-subscriber-stats #subscriberStats>
-    </app-subscriber-stats>
-  </div> -->
 </div>

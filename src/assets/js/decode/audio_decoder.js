@@ -28,33 +28,38 @@ function processAudioFrame (aFrame) {
 }
 
 self.addEventListener('message', async function (e) {
+
   if (workerState === StateEnum.Created) {
     workerState = StateEnum.Instantiated
   }
 
   if (workerState === StateEnum.Stopped) {
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
+    console.log(WORKER_PREFIX + ' Decoder is stopped, it does not accept messages')
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Encoder is stopped it does not accept messages')
     return
   }
 
   const type = e.data.type
+
   if (type === 'stop') {
+
     workerState = StateEnum.Stopped
+
     if (audioDecoder != null) {
       await audioDecoder.flush()
       audioDecoder.close()
       audioDecoder = null
-
       ptsQueue.clear()
     }
     workerState = StateEnum.Created
     timestampOffset = 0
     lastChunkSentTimestamp = -1
   } else if (type === 'audiochunk') {
-    if (e.data.metadata !== undefined && e.data.metadata != null) {
-      sendMessageToMain(WORKER_PREFIX, 'debug', `audio-${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: ${e.data.metadata.byteLength}`)
+
+    if (e.data.metadata !== undefined && e.data.metadata !== null) {
+      // sendMessageToMain(WORKER_PREFIX, 'debug', `audio-${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: ${e.data.metadata.byteLength}`)
       if (audioDecoder != null) {
-        sendMessageToMain(WORKER_PREFIX, 'debug', `audio-${e.data.seqId} Received init, but AudioDecoder already initialized`)
+        // sendMessageToMain(WORKER_PREFIX, 'debug', `audio-${e.data.seqId} Received init, but AudioDecoder already initialized`)
       } else {
         // Initialize audio decoder
         // eslint-disable-next-line no-undef
@@ -63,7 +68,8 @@ self.addEventListener('message', async function (e) {
             processAudioFrame(frame)
           },
           error: err => {
-            sendMessageToMain(WORKER_PREFIX, 'error', 'Audio decoder. err: ' + err.message)
+            console.error(WORKER_PREFIX + ` Audio decoder. err: ${err.message}`);
+            // sendMessageToMain(WORKER_PREFIX, 'error', 'Audio decoder. err: ' + err.message)
           }
         })
 
@@ -75,24 +81,25 @@ self.addEventListener('message', async function (e) {
 
         const config = deSerializeMetadata(e.data.metadata)
         audioDecoder.configure(config)
-
         workerState = StateEnum.Running
-
-        sendMessageToMain(WORKER_PREFIX, 'info', 'Initialized and configured')
+        console.log(WORKER_PREFIX + ' Initialized and configured')
+        // sendMessageToMain(WORKER_PREFIX, 'info', 'Initialized and configured')
       }
     } else {
-      sendMessageToMain(WORKER_PREFIX, 'debug', `audio-${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: -`)
+      // sendMessageToMain(WORKER_PREFIX, 'debug', `audio-${e.data.seqId} Received chunk, chunkSize: ${e.data.chunk.byteLength}, metadataSize: -`)
     }
 
     if (workerState !== StateEnum.Running) {
-      sendMessageToMain(WORKER_PREFIX, 'warning', 'Received audio chunk, but NOT running state')
+      // console.warn(WORKER_PREFIX + ' Received audio chunk, but NOT running state')
+      // sendMessageToMain(WORKER_PREFIX, 'warning', 'Received audio chunk, but NOT running state')
       return
     }
     ptsQueue.addToPtsQueue(e.data.chunk.timestamp, e.data.chunk.duration)
 
     if (e.data.isDisco && lastChunkSentTimestamp >= 0) {
       const addTs = e.data.chunk.timestamp - lastChunkSentTimestamp
-      sendMessageToMain(WORKER_PREFIX, 'warning', `disco at seqId: ${e.data.seqId}, ts: ${e.data.chunk.timestamp}, added: ${addTs}`)
+      // console.warn(WORKER_PREFIX + ` Disco detected at seqId: ${e.data.seqId}`);
+      // sendMessageToMain(WORKER_PREFIX, 'warning', `disco at seqId: ${e.data.seqId}, ts: ${e.data.chunk.timestamp}, added: ${addTs}`)
       timestampOffset += addTs
     }
     lastChunkSentTimestamp = e.data.chunk.timestamp + e.data.chunk.duration
@@ -101,11 +108,12 @@ self.addEventListener('message', async function (e) {
 
     const decodeQueueInfo = ptsQueue.getPtsQueueLengthInfo()
     if (decodeQueueInfo.lengthMs > MAX_DECODE_QUEUE_SIZE_FOR_WARNING_MS) {
-      sendMessageToMain(WORKER_PREFIX, 'warning', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), audioDecoder: ' + audioDecoder.decodeQueueSize)
+      // sendMessageToMain(WORKER_PREFIX, 'warning', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), audioDecoder: ' + audioDecoder.decodeQueueSize)
     } else {
-      sendMessageToMain(WORKER_PREFIX, 'debug', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), audioDecoder: ' + audioDecoder.decodeQueueSize)
+      // sendMessageToMain(WORKER_PREFIX, 'debug', 'Decode queue size is ' + decodeQueueInfo.lengthMs + 'ms (' + decodeQueueInfo.size + ' frames), audioDecoder: ' + audioDecoder.decodeQueueSize)
     }
   } else {
-    sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
+    console.error(WORKER_PREFIX + ' Invalid message received')
+   // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
   }
 })

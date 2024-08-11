@@ -73,7 +73,6 @@ export class VideoRenderBuffer {
   constructor () {
     this.elementsList = []
     this.totalDiscarded = 0
-
     this.totalLengthMs = 0
   }
 
@@ -82,10 +81,14 @@ export class VideoRenderBuffer {
     if (this.elementsList.length < MAX_ELEMENTS_RENDERER) {
       // Add at the end (ordered by timestamp)
       this.elementsList.push(vFrame)
-
       this.totalLengthMs += vFrame.duration / 1000
     } else {
-      r = false
+      const v = this.elementsList.shift();
+      this.totalLengthMs -= v.duration / 1000;
+      (v as VideoFrame).close()
+      this.elementsList.push(vFrame)
+      this.totalLengthMs += vFrame.duration / 1000
+      // r = false
     }
     return r
   }
@@ -424,6 +427,10 @@ export class CicularAudioSharedBuffer {
     Atomics.store(this.sharedStates, SharedStates.IS_PLAYING, 1)
   }
 
+  Stop () {
+    Atomics.store(this.sharedStates, SharedStates.IS_PLAYING, 0)
+  }
+
   GetSharedBuffers () {
     if (this.sharedAudiobuffers === null) {
       throw new Error('Not initialized yet')
@@ -476,32 +483,4 @@ export class CicularAudioSharedBuffer {
       return (index <= start && index > end)
     }
   }
-}
-
-export class SubscriberStats {
-    // Player variables
-    latencyAudioMs?: number | undefined = undefined;
-    latencyVideoMs?: number | undefined = undefined;
-    currentChunkATS?: number | undefined = undefined;
-    currentChunkVTS?: number | undefined = undefined;
-    firstChunkAts?: number | undefined = undefined;
-    firstChunkVts?: number | undefined = undefined;
-    audioJitterCurrentMaxSize?: number | undefined = undefined;
-    audioJitterSize?: number | undefined = undefined;
-    audioJitterGaps?: number | undefined = undefined;
-    videoJitterCurrentMaxSize?: number | undefined = undefined;
-    videoJitterSize?: number | undefined = undefined;
-    videoJitterGaps?: number | undefined = undefined;
-    currentFrameATS?: number | undefined = undefined;
-    currentDecoABuffer?: number | undefined = undefined;
-    currentDecoCompAOffset?: number | undefined = undefined;
-    currentFrameVTS?: number | undefined = undefined;
-    currentDecoVBuffer?: number | undefined = undefined;
-    currentRendererATS?: number | undefined = undefined;
-    currentRendererABuffer?: number | undefined = undefined;
-    currentRendererASilenceInserted?: number | undefined = undefined;
-    currentRendererVTS?: number | undefined = undefined;
-    currentRendererVBuffer?: number | undefined = undefined;
-    currentRendererVDiscarded?: number | undefined = undefined;
-    droppedFramesData?: Array<string> = [];
 }

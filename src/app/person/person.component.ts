@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CicularAudioSharedBuffer, JitterBuffer, TimeBufferChecker, VideoRenderBuffer } from '../common';
+import { AudioService } from '../audio.service';
 
 declare const MediaStreamTrackProcessor: any;
 
@@ -14,7 +15,7 @@ declare const MediaStreamTrackProcessor: any;
   styleUrl: './person.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PersonComponent implements OnInit, OnChanges {
+export class PersonComponent implements OnInit, OnChanges, OnDestroy {
 
   @Input() url!: string;
   @Input() auth!: string;
@@ -28,6 +29,8 @@ export class PersonComponent implements OnInit, OnChanges {
   @Input() audioJitterBufferMs: number | undefined
   @Input() videoJitterBufferMs: number | undefined
 
+  @Input() index!: number
+
   // Required only for caller / me
   @Input() videoDeviceId: string | undefined;
   @Input() audioDeviceId: string | undefined;
@@ -40,6 +43,7 @@ export class PersonComponent implements OnInit, OnChanges {
   @ViewChild('videoplayer', { static: false }) videoPlayer!: ElementRef;
 
   videoFramePrinted = false;
+  mute = true;
 
   // Me variables
   private vStreamWorker!: Worker;
@@ -48,10 +52,8 @@ export class PersonComponent implements OnInit, OnChanges {
   private aEncoderWorker!: Worker;
   private muxerSenderWorker!: Worker;
 
-  private VERBOSE = true;
   private AUDIO_STOPPED = 0;
-  private AUDIO_PLAYING = 1;
-  private RENDER_VIDEO_EVERY_MS = 10;
+
 
   private videoEncoderConfig = {
     encoderConfig: {
@@ -121,33 +123,6 @@ export class PersonComponent implements OnInit, OnChanges {
     },
   }
 
-  private timingInfo = {
-    muxer: {
-        currentAudioTs: -1,
-        currentVideoTs: -1,
-    },
-    decoder: {
-        currentAudioTs: -1,
-        currentVideoTs: -1,
-    },
-    renderer: {
-        // Estimated audio PTS (assumed PTS is microseconds, and audio and video uses same timescale)
-        currentAudioTs: -1,
-        currentVideoTs: -1,
-    }
-  };
-
-  private buffersInfo = {
-    decoder: {
-        audio: { size: -1, lengthMs: -1, timestampCompensationOffset: -1 },
-        video: { size: -1, lengthMs: -1 },
-    },
-    renderer: {
-        audio: { size: -1, lengthMs: -1, sizeMs: -1, state: this.AUDIO_STOPPED },
-        video: { size: -1, lengthMs: -1, },
-    },
-  }
-
   private currentVideoSize = {
     width: -1,
     height: -1
@@ -164,8 +139,6 @@ export class PersonComponent implements OnInit, OnChanges {
   private videoRendererBuffer : VideoRenderBuffer | null = null;
   private wtVideoJitterBuffer : JitterBuffer | null = null;
   private wtAudioJitterBuffer : JitterBuffer | null = null;
-  private latencyAudioChecker : TimeBufferChecker | null = null;
-  private latencyVideoChecker : TimeBufferChecker | null = null;
   private muxerDownloaderWorker!: Worker;
   private audioDecoderWorker!: Worker;
   private videoDecoderWorker!: Worker;
@@ -174,13 +147,13 @@ export class PersonComponent implements OnInit, OnChanges {
   private sourceBufferAudioWorklet:AudioWorkletNode | null = null;
   private systemAudioLatencyMs: number = 0;
   private audioSharedBuffer:CicularAudioSharedBuffer | null = null;
-  private animFrame: any | null = null;
-  private wcLastRender: number = 0;
   private videoPlayerCtx:CanvasRenderingContext2D | null = null;
 
-  private statsHelper: any = {};
+  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef, private audioService: AudioService ) {}
 
-  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef) {}
+  ngOnDestroy(): void {
+    this.stop();
+  }
 
   ngOnInit(): void {
 
@@ -257,100 +230,6 @@ export class PersonComponent implements OnInit, OnChanges {
     }
   }
 
-  async announce(moqVideoQuicMapping: string, moqAudioQuicMapping: string,
-    maxInflightVideoRequests: number, maxInflightAudioRequests: number, videoEncodingKeyFrameEvery: number,
-    videoEncodingBitrateBps: number, audioEncodingBitrateBps: number
-  ): Promise<boolean> {
-
-    if (this.videoPlayer.nativeElement.srcObject == undefined || this.videoPlayer.nativeElement.srcObject == null) {
-      console.error("Preview is not set, we can not start a publish session");
-      return Promise.resolve(false);
-    }
-    const mediaStream = this.videoPlayer.nativeElement.srcObject
-    if (mediaStream.getVideoTracks().length <= 0) {
-        console.error("Publish session can not be started without video tracks in preview");
-        return Promise.resolve(false);
-    }
-    if (mediaStream.getAudioTracks().length <= 0) {
-        console.error("Publish session can not be started without audio tracks in preview");
-        return Promise.resolve(false);
-    }
-
-    try {
-
-      this.createWebWorkers();
-
-      this.ngZone.runOutsideAngular(() => {
-        // Print messages from the worker in the console
-        this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
-        });
-      });
-      const vTrack = mediaStream.getVideoTracks()[0];
-      const vProcessor = new MediaStreamTrackProcessor(vTrack);
-      const vFrameStream = vProcessor.readable;
-
-      const aTrack = mediaStream.getAudioTracks()[0];
-      const aProcessor = new MediaStreamTrackProcessor(aTrack);
-      const aFrameStream = aProcessor.readable;
-
-      // Load video encoding settings
-      this.videoEncoderConfig.encoderConfig.width = this.resolution!.width;
-      this.videoEncoderConfig.encoderConfig.height = this.resolution!.height;
-      this.videoEncoderConfig.encoderConfig.framerate = this.resolution!.fps;
-      this.videoEncoderConfig.encoderConfig.codec = this.getCodecString("avc1", 66, this.resolution!.level);
-      this.videoEncoderConfig.encoderConfig.bitrate = videoEncodingBitrateBps;
-      this.videoEncoderConfig.keyframeEvery = videoEncodingKeyFrameEvery;
-
-      // Load audio encoding settings
-      this.audioEncoderConfig.encoderConfig.bitrate = audioEncodingBitrateBps;
-
-      this.vEncoderWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery });
-      this.aEncoderWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize });
-
-      // Transport
-      // Get url data
-      this.muxerSenderConfig.urlHostPort = this.url!;
-
-      //Get max Inflight requests & auth info
-      this.muxerSenderConfig.moqTracks["video"].namespace = this.namespace!;
-      this.muxerSenderConfig.moqTracks["video"].name = this.trackName + "-video";
-      this.muxerSenderConfig.moqTracks["video"].maxInFlightRequests = maxInflightVideoRequests;
-      this.muxerSenderConfig.moqTracks["video"].authInfo = this.auth!;
-      this.muxerSenderConfig.moqTracks["video"].moqMapping = moqVideoQuicMapping;
-
-      this.muxerSenderConfig.moqTracks["audio"].namespace = this.namespace!;
-      this.muxerSenderConfig.moqTracks["audio"].name = this.trackName  + "-audio";
-      this.muxerSenderConfig.moqTracks["audio"].maxInFlightRequests = maxInflightAudioRequests;
-      this.muxerSenderConfig.moqTracks["audio"].authInfo = this.auth!;
-      this.muxerSenderConfig.moqTracks["audio"].moqMapping = moqAudioQuicMapping
-
-      this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig });
-
-      // Transfer the readable stream to the worker.
-      this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream }, [vFrameStream]);
-      this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream }, [aFrameStream]);
-
-      return Promise.resolve(true);
-
-    } catch (error) {
-      console.log('Failure while announcing: ', error);
-      return Promise.resolve(false);
-    }
-  }
-
   async stop () {
 
     if (this.self) {
@@ -386,12 +265,8 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.videoTimeChecker !== null) {
         this.videoTimeChecker.Clear();
       }
-      this.statsHelper = {};
     } else {
-      // Clear subsbcriber variables
-      if (this.animFrame != null) {
-        cancelAnimationFrame(this.animFrame);
-      }
+
       // stop workers
       const stopMsg = { type: "stop" };
       if (this.muxerDownloaderWorker) {
@@ -406,42 +281,17 @@ export class PersonComponent implements OnInit, OnChanges {
         this.audioDecoderWorker.postMessage(stopMsg);
         this.audioDecoderWorker.terminate();
       }
-      if (this.audioCtx) {
-        await this.audioCtx.close();
-      }
       this.audioCtx = null;
       this.sourceBufferAudioWorklet = null;
       if (this.audioSharedBuffer) {
         this.audioSharedBuffer.Clear();
         this.audioSharedBuffer = null;
       }
-      // clear timing information
-      this.timingInfo.muxer.currentAudioTs = -1;
-      this.timingInfo.muxer.currentVideoTs = -1;
-
-      this.timingInfo.decoder.currentAudioTs = -1;
-      this.timingInfo.decoder.currentVideoTs = -1;
-
-      this.timingInfo.renderer.currentAudioTs = -1;
-      this.timingInfo.renderer.currentVideoTs = -1;
-
-      // clear buffer info
-      this.buffersInfo.decoder.audio.size = -1;
-      this.buffersInfo.decoder.audio.lengthMs = -1;
-      this.buffersInfo.decoder.video.size = -1;
-      this.buffersInfo.decoder.video.lengthMs = -1;
-
-      this.buffersInfo.renderer.audio.size = -1;
-      this.buffersInfo.renderer.audio.lengthMs = -1;
-      this.buffersInfo.renderer.audio.state = this.AUDIO_STOPPED;
-      this.buffersInfo.renderer.video.size = -1;
-      this.buffersInfo.renderer.video.lengthMs = -1;
 
       this.currentVideoSize.width = -1;
       this.currentVideoSize.height = -1;
-
       this.videoPlayerCtx = null;
-      this.animFrame = null;
+
       // clear jitter buffer
       if (this.wtAudioJitterBuffer) {
         this.wtAudioJitterBuffer.Clear();
@@ -449,13 +299,7 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.wtVideoJitterBuffer) {
         this.wtVideoJitterBuffer.Clear();
       }
-      //clear time checker
-      if (this.latencyAudioChecker) {
-        this.latencyAudioChecker.Clear();
-      }
-      if (this.latencyVideoChecker) {
-        this.latencyVideoChecker.Clear();
-      }
+
       //clear video renderer
       if (this.videoRendererBuffer) {
         this.videoRendererBuffer.Clear();
@@ -467,19 +311,110 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   // ME / ANNOUNCE FUNCTIONS
+
+  async announce(moqVideoQuicMapping: string, moqAudioQuicMapping: string,
+    maxInflightVideoRequests: number, maxInflightAudioRequests: number, videoEncodingKeyFrameEvery: number,
+    videoEncodingBitrateBps: number, audioEncodingBitrateBps: number
+  ): Promise<boolean> {
+
+    if (this.videoPlayer.nativeElement.srcObject == undefined || this.videoPlayer.nativeElement.srcObject == null) {
+      console.error("Preview is not set, we can not start a publish session");
+      return Promise.resolve(false);
+    }
+    const mediaStream = this.videoPlayer.nativeElement.srcObject
+    if (mediaStream.getVideoTracks().length <= 0) {
+        console.error("Publish session can not be started without video tracks in preview");
+        return Promise.resolve(false);
+    }
+    if (mediaStream.getAudioTracks().length <= 0) {
+        console.error("Publish session can not be started without audio tracks in preview");
+        return Promise.resolve(false);
+    }
+
+    try {
+
+      this.createWebWorkers();
+
+      this.ngZone.runOutsideAngular(() => {
+        this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          if (e.data.type === 'started') {
+            this.initalizeWorkers(videoEncodingBitrateBps,videoEncodingKeyFrameEvery, audioEncodingBitrateBps, mediaStream);
+          } else {
+            this.encoderProcessWorkerMessage(e);
+          }
+        });
+        this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
+        this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          this.encoderProcessWorkerMessage(e);
+        });
+      });
+
+      this.muxerSenderConfig.moqTracks["video"].namespace = this.namespace!;
+      this.muxerSenderConfig.moqTracks["video"].name = this.trackName + "-video";
+      this.muxerSenderConfig.moqTracks["video"].maxInFlightRequests = maxInflightVideoRequests;
+      this.muxerSenderConfig.moqTracks["video"].authInfo = this.auth!;
+      this.muxerSenderConfig.moqTracks["video"].moqMapping = moqVideoQuicMapping;
+
+      this.muxerSenderConfig.moqTracks["audio"].namespace = this.namespace!;
+      this.muxerSenderConfig.moqTracks["audio"].name = this.trackName  + "-audio";
+      this.muxerSenderConfig.moqTracks["audio"].maxInFlightRequests = maxInflightAudioRequests;
+      this.muxerSenderConfig.moqTracks["audio"].authInfo = this.auth!;
+      this.muxerSenderConfig.moqTracks["audio"].moqMapping = moqAudioQuicMapping
+
+      this.muxerSenderConfig.urlHostPort = this.url!;
+
+      this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig });
+
+      return Promise.resolve(true);
+
+    } catch (error) {
+      console.log('Failure while announcing: ', error);
+      return Promise.resolve(false);
+    }
+  }
+
+  private initalizeWorkers(videoEncodingBitrateBps: number, videoEncodingKeyFrameEvery: number, audioEncodingBitrateBps: number, mediaStream: any) {
+
+    // Load video encoding settings
+    this.videoEncoderConfig.encoderConfig.width = this.resolution!.width;
+    this.videoEncoderConfig.encoderConfig.height = this.resolution!.height;
+    this.videoEncoderConfig.encoderConfig.framerate = this.resolution!.fps;
+    this.videoEncoderConfig.encoderConfig.codec = this.getCodecString("avc1", 66, this.resolution!.level);
+    this.videoEncoderConfig.encoderConfig.bitrate = videoEncodingBitrateBps;
+    this.videoEncoderConfig.keyframeEvery = videoEncodingKeyFrameEvery;
+
+    // Load audio encoding settings
+    this.audioEncoderConfig.encoderConfig.bitrate = audioEncodingBitrateBps;
+
+    this.vEncoderWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery });
+    // this.aEncoderWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize });
+
+    const vTrack = mediaStream.getVideoTracks()[0];
+    const vProcessor = new MediaStreamTrackProcessor(vTrack);
+    const vFrameStream = vProcessor.readable;
+
+    const aTrack = mediaStream.getAudioTracks()[0];
+    const aProcessor = new MediaStreamTrackProcessor(aTrack);
+    const aFrameStream = aProcessor.readable;
+
+    // Transfer the readable stream to the worker.
+    this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream }, [vFrameStream]);
+    // this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream }, [aFrameStream]);
+
+  }
+
   private encoderProcessWorkerMessage(e: MessageEvent<any>): void {
 
     // LOGGING
-    if ((e.data.type === "debug") && (this.VERBOSE === true)) {
-      console.debug(e.data.data);
-    } else if (e.data.type === "info") {
-      console.log(e.data.data);
-    } else if (e.data.type === "error") {
-      console.error(e.data.data);
-    } else if (e.data.type === "warning") {
-      console.warn(e.data.data);
-    // ENCODING
-    } else if (e.data.type === "vframe") {
+    if (e.data.type === "vframe") {
         const vFrame = e.data.data;
         let estimatedDuration = -1;
         if (this.currentVideoTs == undefined) {
@@ -490,14 +425,6 @@ export class PersonComponent implements OnInit, OnChanges {
               // Adjust video offset to last audio seen (most probable case since audio startsup faster)
               this.videoOffsetTS = -vFrame.timestamp + (this.currentAudioTs || 0) + (this.audioOffsetTS || 0); // Comp video starts last audio seen
           }
-          // const firstVts = (vFrame.timestamp / 1000).toFixed(3);
-          // const firstCompVts = ((vFrame.timestamp + this.videoOffsetTS)/ 1000).toFixed(3);
-
-          // this.stats.emit({
-          //   'firstVts': firstVts,
-          //   'firstCompVts': firstCompVts,
-          // });
-
         } else {
           estimatedDuration = vFrame.timestamp - this.currentVideoTs;
         }
@@ -506,6 +433,7 @@ export class PersonComponent implements OnInit, OnChanges {
         // Send the video frame obtained from v_capture.js to video encoder
         this.vEncoderWorker.postMessage({ type: "vframe", vframe: vFrame }, [vFrame]);
     } else if (e.data.type === "aframe") {
+        console.error('should not recieve audio chunk');
         const aFrame = e.data.data;
         let estimatedDuration = -1;
         if (this.currentAudioTs == undefined) {
@@ -516,13 +444,6 @@ export class PersonComponent implements OnInit, OnChanges {
                 // Adjust audio offset to last video seen
                 this.audioOffsetTS = -aFrame.timestamp + this.currentVideoTs! + this.videoOffsetTS; // Comp audio starts last video seen
             }
-            // const firstAts = (aFrame.timestamp / 1000).toFixed(3);
-            // const firstCompAts = ((aFrame.timestamp + this.audioOffsetTS)/ 1000).toFixed(3);
-
-            // this.stats.emit({
-            //   'firstAts': firstAts,
-            //   'firstCompAts': firstCompAts,
-            // });
         } else {
             estimatedDuration = aFrame.timestamp - this.currentAudioTs;
         }
@@ -532,25 +453,6 @@ export class PersonComponent implements OnInit, OnChanges {
         this.aEncoderWorker.postMessage({ type: "aframe", aframe: aFrame });
 
     // DROPPED frames by encoders
-    } else if (e.data.type === "dropped") {
-
-      console.debug('dropped frame: ',e.data.data.msg);
-      // As of now, just logging the dropped frame.
-      // const droppedFrameData = e.data.data;
-      // const mediaType = droppedFrameData.mediaType;
-      // const str = new Date(droppedFrameData.clkms).toISOString() + " (" + droppedFrameData.seqId + ")(" + droppedFrameData.ts + ") " + droppedFrameData.msg;
-      // if (mediaType === 'video') {
-      //   this.stats.emit({
-      //     'videoChunkDropped': true,
-      //     'chunkDroppedMsg': str
-      //   })
-      // } else  {
-      //   this.stats.emit({
-      //     'audioChunkDropped': true,
-      //     'chunkDroppedMsg': str
-      //   })
-      // }
-    // CHUNKS from encoders
     } else if (e.data.type === "vchunk") {
         const chunk = e.data.chunk;
         const metadata = e.data.metadata;
@@ -558,16 +460,6 @@ export class PersonComponent implements OnInit, OnChanges {
         const itemTsClk = this.videoTimeChecker.GetItemByTs(chunk.timestamp);
         if (!itemTsClk.valid) {
             console.warn(`Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${seqId}`);
-        } else {
-          // const encodedVideoLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
-          // const encodedVideoTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
-          // const encodedVideoCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
-
-          // this.stats.emit({
-          //   'encodedVideoTs': encodedVideoTs,
-          //   'encodedVideoCompensatedTs': encodedVideoCompensatedTs,
-          //   'encodedVideoLatencyMs': encodedVideoLatencyMs
-          // });
         }
         // Send the encoded video chunk obtained from v_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "video", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, estimatedDuration: itemTsClk.estimatedDuration, seqId: seqId, chunk: chunk, metadata: metadata });
@@ -578,32 +470,12 @@ export class PersonComponent implements OnInit, OnChanges {
         const seqId = e.data.seqId;
         const itemTsClk = this.audioTimeChecker.GetItemByTs(chunk.timestamp);
         if (!itemTsClk.valid) {
-            console.info(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
-        } else {
-          // const encodedAudioLatencyMs = Date.now()  - (itemTsClk.clkms || 0);
-          // const encodedAudioTs = ((chunk.timestamp || 0)/ 1000.0).toFixed(0);
-          // const encodedAudioCompensatedTs = ((itemTsClk.compensatedTs || 0) / 1000.0).toFixed(0)
-
-          // this.stats.emit({
-          //   'encodedAudioTs':encodedAudioTs,
-          //   'encodedAudioCompensatedTs': encodedAudioCompensatedTs,
-          //   'encodedAudioLatencyMs': encodedAudioLatencyMs
-          // });
+            console.warn(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
         }
-          // Send the encoded audio chunk obtained from a_encoder.js to moq_sender.js
+        // Send the encoded audio chunk obtained from a_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "audio", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, seqId: seqId, chunk: chunk, metadata: metadata });
-
-    // CHUNKS STATS
-    } else if (e.data.type === "sendstats") {
-      console.debug('sendstats: ', e.data.inFlightReq);
-      // const inFlightReq = e.data.inFlightReq;
-      // this.stats.emit({
-      //   'uploadStatsAudioInflight': `${inFlightReq['audio']} (${this.returnMax('inFlightAudioReqNum', inFlightReq["audio"])})`,
-      //   'uploadStatsVideoInflight': `${inFlightReq['video']} (${this.returnMax('inFlightVideoReqNum', inFlightReq["video"])})`
-      // })
-    // UNKNOWN
     } else {
-        console.error("unknown message: ", e.data);
+      console.error("unknown message: ", e.data);
     }
   }
 
@@ -613,29 +485,15 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private createWebWorkers() {
 
-    this.vStreamWorker = new Worker("../../assets/js/capture/v_capture.js", { type: "module" });
-    this.aStreamWorker = new Worker("../../assets/js/capture/a_capture.js", { type: "module" });
+    // Create send worker
+    this.muxerSenderWorker = new Worker("../../assets/js/sender/moq_sender.js", { type: "module" });
 
     // Create a new workers for video / audio frames encode
     this.vEncoderWorker = new Worker("../../assets/js/encode/v_encoder.js", { type: "module" });
     this.aEncoderWorker = new Worker("../../assets/js/encode/a_encoder.js", { type: "module" });
 
-    // Create send worker
-    this.muxerSenderWorker = new Worker("../../assets/js/sender/moq_sender.js", { type: "module" });
-  }
-
-  private returnMax(varName:any, val: any): any {
-    let ret = val;
-    if (!(varName in this.statsHelper)) {
-        this.statsHelper[varName] = val;
-    } else {
-        if (this.statsHelper[varName] > val) {
-            ret = this.statsHelper[varName];
-        } else {
-            this.statsHelper[varName] = val;
-        }
-    }
-    return ret;
+    this.vStreamWorker = new Worker("../../assets/js/capture/v_capture.js", { type: "module" });
+    this.aStreamWorker = new Worker("../../assets/js/capture/a_capture.js", { type: "module" });
   }
 
   // SUBCRIBER Functions
@@ -643,8 +501,6 @@ export class PersonComponent implements OnInit, OnChanges {
   private loadPlayer() {
 
     this.videoRendererBuffer = new VideoRenderBuffer();
-    this.latencyAudioChecker = new TimeBufferChecker("audio");
-    this.latencyVideoChecker = new TimeBufferChecker("video");
     this.wtVideoJitterBuffer = new JitterBuffer(this.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
     this.wtAudioJitterBuffer = new JitterBuffer(this.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
 
@@ -652,7 +508,6 @@ export class PersonComponent implements OnInit, OnChanges {
     this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
     this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
-    //this.playerUpdateDroppedFrame = this.playerUpdateDroppedFrame.bind(this);
     const self =  this;
 
     this.ngZone.runOutsideAngular(() => {
@@ -681,29 +536,13 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private async playerProcessWorkerMessage(e: MessageEvent<any>) {
 
-    if ((e.data.type === "debug") && (this.VERBOSE === true)) {
-      console.debug(e.data.data);
-    } else if (e.data.type === "info") {
-      console.log(e.data.data);
-    } else if (e.data.type === "error") {
-      console.error(e.data.data);
-    } else if (e.data.type === "warning") {
-      console.warn(e.data.data);
-    // CHUNKS
-    } else if (e.data.type === "videochunk") {
+    if (e.data.type === "videochunk") {
       const chunk = e.data.chunk;
       const seqId = e.data.seqId;
       const extraData = { captureClkms: e.data.captureClkms, metadata: e.data.metadata }
       if (this.wtVideoJitterBuffer != null) {
           const orderedVideoData = this.wtVideoJitterBuffer.AddItem(chunk, seqId, extraData);
           if (orderedVideoData !== undefined) {
-              // if (this.timingInfo.muxer.currentVideoTs < 0) {
-              //   const firstChunkVts = (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
-              //   this.stats.emit({
-              //     'id': this.namespace + '/' + this.trackName,
-              //     'firstChunkVts': firstChunkVts
-              //   })
-              // }
               // Download is sequential
               if (orderedVideoData.isDisco) {
                   console.warn(`VIDEO DISCO detected in seqId: ${orderedVideoData.seqId}`);
@@ -712,38 +551,18 @@ export class PersonComponent implements OnInit, OnChanges {
                   console.warn(`VIDEO Repeated or backwards chunk, discarding, seqId: ${orderedVideoData.seqId}`);
               } else {
                   // Adds pts to wallClk info
-                  this.latencyVideoChecker!.AddItem({ ts: orderedVideoData.chunk.timestamp, clkms: orderedVideoData.extraData.captureClkms});
-                  this.timingInfo.muxer.currentVideoTs = orderedVideoData.chunk.timestamp;
-                  // const currentChunkVTS =  (orderedVideoData.chunk.timestamp / 1000).toFixed(0);
-                  // this.stats.emit({
-                  //   'id': this.namespace + '/' + this.trackName,
-                  //   'currentChunkVTS': currentChunkVTS
-                  // })
                   this.videoDecoderWorker.postMessage({ type: "videochunk", seqId: orderedVideoData.seqId, chunk: orderedVideoData.chunk, metadata: orderedVideoData.extraData.metadata, isDisco: orderedVideoData.isDisco });
               }
           }
-          // const videoJitterStats = this.wtVideoJitterBuffer.GetStats()
-          // this.stats.emit({
-          //   'id': this.namespace + '/' + this.trackName,
-          //   'videoJitterCurrentMaxSize': videoJitterStats.currentMaSizeMs,
-          //   'videoJitterSize':  videoJitterStats.size,
-          //   'videoJitterGaps': `${videoJitterStats.numTotalGaps} (${videoJitterStats.numTotalLostStreams} streams lost)`
-          // });
       }
     } else if (e.data.type === "audiochunk") {
+      console.error('should not recieve audio chunk');
       const chunk = e.data.chunk;
       const seqId = e.data.seqId;
       const extraData = {captureClkms: e.data.captureClkms, metadata: e.data.metadata}
       if (this.wtAudioJitterBuffer != null) {
           const orderedAudioData = this.wtAudioJitterBuffer.AddItem(chunk, seqId, extraData);
           if (orderedAudioData !== undefined) {
-              // if (this.timingInfo.muxer.currentAudioTs < 0) {
-              //   const firstChunkAts = (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
-              //   this.stats.emit({
-              //     'id': this.namespace + '/' + this.trackName,
-              //     'firstChunkAts': firstChunkAts
-              //   })
-              // }
               // Download is sequential
               if (orderedAudioData.isDisco) {
                   console.warn(`AUDIO DISCO detected in seqId: ${orderedAudioData.seqId}`);
@@ -752,227 +571,92 @@ export class PersonComponent implements OnInit, OnChanges {
                   console.warn(`AUDIO Repeated or backwards chunk, discarding, seqId: ${orderedAudioData.seqId}`);
               } else {
                   // Adds pts to wallClk info
-                  this.latencyAudioChecker!.AddItem({ ts: orderedAudioData.chunk.timestamp, clkms: orderedAudioData.extraData.captureClkms});
-                  this.timingInfo.muxer.currentAudioTs = orderedAudioData.chunk.timestamp;
-                  // const currentChunkATS =  (orderedAudioData.chunk.timestamp / 1000).toFixed(0);
-                  // this.stats.emit({
-                  //   'id': this.namespace + '/' + this.trackName,
-                  //   'currentChunkATS': currentChunkATS
-                  // })
                   this.audioDecoderWorker.postMessage({ type: "audiochunk", seqId: orderedAudioData.seqId, chunk: orderedAudioData.chunk, metadata: orderedAudioData.extraData.metadata, isDisco: orderedAudioData.isDisco });
               }
           }
-          // const audioJitterStats = this.wtAudioJitterBuffer.GetStats()
-          // this.stats.emit({
-          //   'id': this.namespace + '/' + this.trackName,
-          //   'audioJitterCurrentMaxSize': audioJitterStats.currentMaSizeMs,
-          //   'audioJitterSize':  audioJitterStats.size,
-          //   'audioJitterGaps': `${audioJitterStats.numTotalGaps} (${audioJitterStats.numTotalLostStreams} streams lost)`
-          // });
       }
-      // FRAME
+    // FRAME
     } else if (e.data.type === "aframe") {
 
-      const aFrame = e.data.frame;
+      // const aFrame = e.data.frame;
 
-      // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
-      this.timingInfo.decoder.currentAudioTs = aFrame.timestamp + e.data.timestampCompensationOffset;
-      this.buffersInfo.decoder.audio.timestampCompensationOffset = e.data.timestampCompensationOffset;
+      // // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
+      // const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
 
-      this.buffersInfo.decoder.audio.size = e.data.queueSize;
-      this.buffersInfo.decoder.audio.lengthMs = e.data.queueLengthMs;
+      // //playerUpdateDecoderUI('audio', timingInfo.decoder.currentAudioTs, buffersInfo.decoder.audio);
 
-      // const currentFrameATS = (this.timingInfo.decoder.currentAudioTs / 1000).toFixed(0)
-      // const currentDecoABuffer = `${this.buffersInfo.decoder.audio.size} (${this.buffersInfo.decoder.audio.lengthMs.toFixed(0)} ms)`
-      // const currentDecoCompAOffset = `${(this.buffersInfo.decoder.audio.timestampCompensationOffset / 1000).toFixed(0)} ms`;
+      // if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+      //     // Initialize the audio worklet node when we know sampling freq used in the capture
+      //     this.playerInitializeAudioContext(aFrame.sampleRate);
+      // }
+      // // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
+      // if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
+      //     const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
+      //     this.audioSharedBuffer = new CicularAudioSharedBuffer();
+      //     this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
+      //     this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
+      //       console.log(`Audio shared buffer dropped frame `, droppedFrameData)
+      //     });
+      //     // Set the audio context sampling freq, and pass buffers
+      //     this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
+      // }
 
-      // this.stats.emit({
-      //   'id': this.namespace + '/' + this.trackName,
-      //   'currentFrameATS': currentFrameATS,
-      //   'currentDecoABuffer': currentDecoABuffer,
-      //   'currentDecoCompAOffset': currentDecoCompAOffset
-      // })
-
-      if (this.audioCtx == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
-          // Initialize the audio when we know sampling freq used in the capture
-          await this.playerInitializeAudioContext(aFrame.sampleRate);
-      }
-      // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
-      if (this.audioCtx != null && this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
-          this.buffersInfo.renderer.audio.sizeMs = Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100);
-          const bufferSizeSamples = Math.floor((this.buffersInfo.renderer.audio.sizeMs * aFrame.sampleRate) / 1000);
-
-          this.audioSharedBuffer = new CicularAudioSharedBuffer();
-          this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
-          this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
-            console.warn('audioSharedBuffer dropped aFrame data: ', droppedFrameData)
-          });
-          // Set the audio context sampling freq, and pass buffers
-          this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
-      }
-
-      if (this.audioSharedBuffer != null) {
-          // Uses compensated TS
-          this.audioSharedBuffer.Add(aFrame, this.timingInfo.decoder.currentAudioTs);
-          if (this.animFrame === null) {
-            //this.animFrame = requestAnimationFrame(this.playerAudioTimestamps.bind(this));
-            this.ngZone.runOutsideAngular(() => {
-              this.animFrame = requestAnimationFrame(this.playerAudioTimestamps.bind(this));
-            })
-          }
-      }
+      // if (this.audioSharedBuffer != null) {
+      //     // Uses compensated TS
+      //     // this.audioSharedBuffer.Add(aFrame, curWCompTs);
+      // }
     } else if (e.data.type === "vframe") {
       const vFrame = e.data.frame;
-      this.timingInfo.decoder.currentVideoTs = vFrame.timestamp;
-
-      this.buffersInfo.decoder.video.size = e.data.queueSize;
-      this.buffersInfo.decoder.video.lengthMs = e.data.queueLengthMs;
-
-      // const currentFrameVTS = (this.timingInfo.decoder.currentVideoTs / 1000).toFixed(0)
-      // const currentDecoVBuffer = `${this.buffersInfo.decoder.video.size} (${this.buffersInfo.decoder.video.lengthMs.toFixed(0)} ms)`
-      // this.stats.emit({
-      //   'id': this.namespace + '/' + this.trackName,
-      //   'currentFrameVTS': currentFrameVTS,
-      //   'currentDecoVBuffer': currentDecoVBuffer
-      // })
-
-      if (this.videoRendererBuffer != null && this.videoRendererBuffer.AddItem(vFrame) === false) {
+      if (this.videoRendererBuffer !== null && this.videoRendererBuffer.AddItem(vFrame) === false) {
           console.warn("Dropped video frame because video renderer is full");
           vFrame.close();
       }
-
     // Downloader STATS
-    } else if (e.data.type === "downloaderstats") {
-      console.debug('Downloader stats data: ', e.data.data)
-
-    // Dropped
-    } else if (e.data.type === "dropped") {
-      console.warn('dropped frame: ', e.data.data.msg)
-      //this.playerUpdateDroppedFrame(e.data.data)
-    // UNKNOWN
     } else {
       console.error("unknown message: " + JSON.stringify(e.data));
     }
   }
 
-  private async playerInitializeAudioContext(desiredSampleRate: number) {
-    return new Promise((resolve, reject) => {
-        if (this.audioCtx == null) {
-            this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
-            this.audioCtx.transitioning = false;
-            // Add worklet
-            this.audioCtx.audioWorklet.addModule('../../assets/js/render/source_buffer_worklet.js')
-                .then(() => {
-                    this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
-                    // AudioWorkletNode can be interoperable with other native AudioNodes.
-                    this.sourceBufferAudioWorklet.port.onmessage = (e) => {
-                        // Handling data from the processor.
-                        this.playerProcessWorkerMessage(e);
-                    };
-                    this.sourceBufferAudioWorklet.onprocessorerror = (event) => {
-                        console.error('Audio worklet error. Err: ' + JSON.stringify(event));
-                    };
+  animate() {
 
-                    // Connect to audio renderer
-                    this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
-                    this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000;
-                    console.debug('Audio system latency (ms): ' + this.systemAudioLatencyMs);
-                    return resolve(null);
-                });
+    let data;
+    // if (this.audioSharedBuffer != null) {
+    //   data = this.audioSharedBuffer.GetStats()
+    //   if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
+    //     this.audioSharedBuffer.Play();
+    //   }
+    // }
+    // if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
+    //   // Assuming audioTS in microseconds
+    //   const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
+    //   const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
+    //   //console.log(retData)
+    //   if (retData.vFrame != null) {
+    //       this.playerSetVideoSize(retData.vFrame);
+    //       if (!this.videoFramePrinted) {
+    //         this.videoFramePrinted = true;
+    //         this.ref.detectChanges();
+    //       }
+    //       this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+    //       (retData.vFrame as VideoFrame).close();
+    //   } else {
+    //      // console.debug("NO FRAME to paint", this.videoRendererBuffer.elementsList.length);
+    //   }
+    // }
+
+    // Only printing video frames and no audio frames.
+    const retData = this.videoRendererBuffer?.GetFirstElement()!;
+    if (retData.vFrame != null) {
+        this.playerSetVideoSize(retData.vFrame);
+        if (!this.videoFramePrinted) {
+          this.videoFramePrinted = true;
+          this.ref.detectChanges();
         }
-        else {
-            return resolve(null);
-        }
-    });
-  }
-
-  private playerAudioTimestamps(wcTimestamp: number) {
-
-    const wcInterval = wcTimestamp - this.wcLastRender;
-
-    if (this.audioSharedBuffer != null) {
-      const data = this.audioSharedBuffer.GetStats();
-      // Audio render stats
-      this.timingInfo.renderer.currentAudioTs = data.currentTimestamp;
-      this.buffersInfo.renderer.audio.size = data.queueSize; // In samples
-      this.buffersInfo.renderer.audio.lengthMs = data.queueLengthMs; // In ms
-      if (data.isPlaying) {
-          this.buffersInfo.renderer.audio.state = this.AUDIO_PLAYING;
-      }
-
-      // const currentRendererATS = (this.timingInfo.renderer.currentAudioTs / 1000).toFixed(0);
-      // const bufferAudio = this.buffersInfo.renderer.audio;
-      // const currentRendererABuffer = `${bufferAudio.size} samples (${bufferAudio.lengthMs.toFixed(0)} ms) - Max: ${this.buffersInfo.renderer.audio.sizeMs} ms`;
-      // const currentRendererASilenceInserted =  data.totalSilenceInsertedMs.toFixed(0);
-      // this.stats.emit({
-      //   'id': this.namespace + '/' + this.trackName,
-      //   'currentRendererATS': currentRendererATS,
-      //   'currentRendererABuffer': currentRendererABuffer,
-      //   'currentRendererASilenceInserted': currentRendererASilenceInserted
-      // });
-
-      if (this.buffersInfo.renderer.audio.lengthMs >= this.playerBufferMs! && this.buffersInfo.renderer.audio.state === this.AUDIO_STOPPED) {
-        this.audioSharedBuffer.Play();
-      }
+        this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+        (retData.vFrame as VideoFrame).close();
+    } else {
+       // console.debug("NO FRAME to paint", this.videoRendererBuffer!.elementsList.length);
     }
-
-    // Update every 10ms
-    if ((this.audioCtx != null) && (wcInterval > this.RENDER_VIDEO_EVERY_MS)) {
-        this.wcLastRender = wcTimestamp;
-
-        if (this.videoRendererBuffer != null && this.timingInfo.renderer.currentAudioTs >= 0) {
-            // Assuming audioTS in microseconds
-            const compensatedAudioTS = Math.max(0, this.timingInfo.renderer.currentAudioTs - (this.systemAudioLatencyMs * 1000));
-            const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
-            if (retData.vFrame != null) {
-                this.playerSetVideoSize(retData.vFrame);
-                if (!this.videoFramePrinted) {
-                  this.videoFramePrinted = true;
-                  this.ref.detectChanges();
-                }
-                this.videoPlayerCtx?.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
-                this.timingInfo.renderer.currentVideoTs = (retData.vFrame as VideoFrame).timestamp;
-                this.buffersInfo.renderer.video.size = retData.queueSize;
-                this.buffersInfo.renderer.video.lengthMs = retData.queueLengthMs;
-                if (this.latencyVideoChecker != null) {
-                    const frameClosestData = this.latencyVideoChecker.GetItemByTs(this.timingInfo.renderer.currentVideoTs, true);
-                    if (frameClosestData.valid) {
-                    //     const currentLatencyMs = (Date.now() - Number(frameClosestData.clkms));
-                    //     this.stats.emit({
-                    //       'id': this.namespace + '/' + this.trackName,
-                    //       'latencyVideoMs': currentLatencyMs
-                    //     });
-                    }
-                }
-                (retData.vFrame as VideoFrame).close();
-            } else {
-                console.debug("NO FRAME to paint");
-            }
-            // const currentRendererVTS = (this.timingInfo.renderer.currentVideoTs  / 1000).toFixed(0);
-            // const bufferInfo = this.buffersInfo.renderer.video
-            // const currentRendererVBuffer = `${bufferInfo.size} (${bufferInfo.lengthMs.toFixed(0)} ms)`
-            // const currentRendererVDiscarded = retData.totalDiscarded.toFixed(0);
-            // this.stats.emit( {
-            //   'id': this.namespace + '/' + this.trackName,
-            //   'currentRendererVTS': currentRendererVTS,
-            //   'currentRendererVBuffer': currentRendererVBuffer,
-            //   'currentRendererVDiscarded': currentRendererVDiscarded
-            // });
-        }
-    }
-
-    if (this.latencyAudioChecker != null) {
-        const frameClosestData = this.latencyAudioChecker.GetItemByTs(Math.floor(this.timingInfo.renderer.currentAudioTs), false);
-        if (frameClosestData.valid) {
-        //      const currentLatencyMs = this.systemAudioLatencyMs + (Date.now() - Number(frameClosestData.clkms));
-        //     const latencyAudioMs =  `${currentLatencyMs.toFixed(0)} ms (System: ${this.systemAudioLatencyMs.toFixed(0)} ms)`;
-        //     this.stats.emit({
-        //       'id': this.namespace + '/' + this.trackName,
-        //       'latencyAudioMs': latencyAudioMs
-        //     });
-        }
-    }
-    this.animFrame = requestAnimationFrame(this.playerAudioTimestamps.bind(this));
   }
 
   private playerSetVideoSize(vFrame: VideoFrame) {
@@ -989,26 +673,20 @@ export class PersonComponent implements OnInit, OnChanges {
     if (needsSet) {
         this.videoPlayer.nativeElement.width = this.currentVideoSize.width;
         this.videoPlayer.nativeElement.height = this. currentVideoSize.height;
-
         // Video player ctx
-       this.videoPlayerCtx = this.videoPlayer.nativeElement.getContext('2d');
+        this.videoPlayerCtx = this.videoPlayer.nativeElement.getContext('2d');
     }
-
   }
 
-  private playerUpdateDroppedFrame(droppedFrameData: any) {
-    console.debug('Player dropped frame data: ', droppedFrameData)
-    const clkms = droppedFrameData.clkms;
-    const ts = droppedFrameData.ts;
-    const msg = droppedFrameData.msg;
-    let seqId = droppedFrameData.msg;
-    if ('seqId' in droppedFrameData) {
-        seqId = droppedFrameData.seqId;
-    }
-    const str = new Date(clkms).toISOString() + " (" + ts + ")(" + seqId + ") " + msg;
-    this.stats.emit({
-      'id': this.namespace + '/' + this.trackName,
-      'droppedFramesData': str,
-    });
+  private async playerInitializeAudioContext(desiredSampleRate: number) {
+    this.audioCtx = await this.audioService.init(desiredSampleRate);
+    this.audioCtx.trans
+    this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
+    this.sourceBufferAudioWorklet.onprocessorerror = (event) => {
+      console.error('Audio worklet error. Err: ' + JSON.stringify(event));
+    };
+    this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
+    this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000;
   }
+
 }

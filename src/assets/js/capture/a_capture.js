@@ -24,14 +24,16 @@ function mainLoop (frameReader) {
         clearInterval(mainLoopInterval)
         mainLoopInterval = undefined
       }
-      sendMessageToMain(WORKER_PREFIX, 'info', 'Exited!')
+      console.log(WORKER_PREFIX + ' Exited!')
+      // sendMessageToMain(WORKER_PREFIX, 'info', 'Exited!')
       isMainLoopInExecution = false
       return resolve(false)
     }
     frameReader.read()
       .then(result => {
         if (result.done) {
-          sendMessageToMain(WORKER_PREFIX, 'info', 'Stream is done')
+          console.log(WORKER_PREFIX + ' Stream is done!')
+          // sendMessageToMain(WORKER_PREFIX, 'info', 'Stream is done')
           return frameReader.cancel('ended')
         } else {
           return new Promise(function (resolve) { return resolve(result) })
@@ -42,12 +44,12 @@ function mainLoop (frameReader) {
           return resolve(false)
         } else {
           const aFrame = result.value
-          sendMessageToMain(WORKER_PREFIX, 'debug', 'Read frame format: ' + aFrame.format + ', ts: ' + aFrame.timestamp + ', dur: ' + aFrame.duration + ', fs: ' + aFrame.sampleRate + ', Frames: ' + aFrame.numberOfFrames + ', ch: ' + aFrame.numberOfChannels)
+
+          // sendMessageToMain(WORKER_PREFIX, 'debug', 'Read frame format: ' + aFrame.format + ', ts: ' + aFrame.timestamp + ', dur: ' + aFrame.duration + ', fs: ' + aFrame.sampleRate + ', Frames: ' + aFrame.numberOfFrames + ', ch: ' + aFrame.numberOfChannels)
 
           // AudioData is NOT transferable: https://github.com/WebAudio/web-audio-api/issues/2390
           self.postMessage({ type: 'aframe', clkms: Date.now(), data: aFrame.clone() })
           aFrame.close()
-
           isMainLoopInExecution = false
           return resolve(true)
         }
@@ -63,18 +65,19 @@ self.addEventListener('message', async function (e) {
   }
   if (type === 'stream') {
     if (mainLoopInterval !== undefined) {
-      sendMessageToMain(WORKER_PREFIX, 'error', 'Loop already running')
+      console.error(WORKER_PREFIX + ' Loop already running')
+      // sendMessageToMain(WORKER_PREFIX, 'error', 'Loop already running')
       return
     }
     const aFrameStream = e.data.aStream
     const aFrameReader = aFrameStream.getReader()
 
-    sendMessageToMain(WORKER_PREFIX, 'info', 'Received streams from main page, starting worker loop')
+    // sendMessageToMain(WORKER_PREFIX, 'info', 'Received streams from main page, starting worker loop')
 
     mainLoopInterval = setInterval(mainLoop, 1, aFrameReader)
 
     return
   }
-
-  sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
+  console.error(WORKER_PREFIX, ' Invalid message received.')
+  // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
 })
