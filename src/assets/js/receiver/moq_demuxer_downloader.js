@@ -41,6 +41,9 @@ let tracks = {} // We add subscribeId and trackAlias
 // MOQT data
 const moqt = moqCreate()
 
+let videoDecoderPort = null;
+let audioDecoderPort = null;
+
 function reportStats () {
   if (isSendingStats) {
     // sendMessageToMain(WORKER_PREFIX, 'downloaderstats', { clkms: Date.now() })
@@ -80,6 +83,10 @@ self.addEventListener('message', async function (e) {
       // sendMessageToMain(WORKER_PREFIX, 'error', `Errors closing (some could be ok): ${err}`)
     }
   } else if (type === 'downloadersendini') {
+
+    videoDecoderPort = e.ports[0];
+    audioDecoderPort = e.ports[1];
+
     if (workerState !== StateEnum.Instantiated) {
       console.error(WORKER_PREFIX + ` received ini message in wrong state. State: ${workerState}`)
       // sendMessageToMain(WORKER_PREFIX, 'error', 'received ini message in wrong state. State: ' + workerState)
@@ -277,7 +284,14 @@ async function readAndSendPayload(readerStream, mediaType, length) {
   if (mediaType !== 'data') {
     const data = await readMediaPackager(readerStream, mediaType, length)
     isEOF = data.isEOF
-    self.postMessage({ type: mediaType + 'chunk', clkms: Date.now(), captureClkms: data.chunkData.firstFrameClkms, seqId: data.chunkData.seqId, chunk: data.chunk, metadata: data.chunkData.metadata })
+    if (mediaType === 'video') {
+      videoDecoderPort.postMessage({ type: mediaType + 'chunk', clkms: Date.now(), captureClkms: data.chunkData.firstFrameClkms, seqId: data.chunkData.seqId, chunk: data.chunk, metadata: data.chunkData.metadata })
+    } else if (mediaType === 'audio') {
+      audioDecoderPort.postMessage({ type: mediaType + 'chunk', clkms: Date.now(), captureClkms: data.chunkData.firstFrameClkms, seqId: data.chunkData.seqId, chunk: data.chunk, metadata: data.chunkData.metadata })
+    } else {
+      console.error(WORKER_PREFIX + ' Invalid media type');
+    }
+
   } else {
     const packet = await readRAWPackager(readerStream, length)
     self.postMessage({ type: 'data', chunk: packet.GetData().data })

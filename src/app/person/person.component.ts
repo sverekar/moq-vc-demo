@@ -503,8 +503,11 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
   private loadPlayer() {
 
     this.videoRendererBuffer = new VideoRenderBuffer();
-    this.wtVideoJitterBuffer = new JitterBuffer(this.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
-    this.wtAudioJitterBuffer = new JitterBuffer(this.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+    // this.wtVideoJitterBuffer = new JitterBuffer(this.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+    // this.wtAudioJitterBuffer = new JitterBuffer(this.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+
+    const channel1 = new MessageChannel();
+    const channel2 = new MessageChannel();
 
     this.muxerDownloaderWorker = new Worker("../../assets/js/receiver/moq_demuxer_downloader.js", {type: "module"});
     this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
@@ -513,9 +516,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
     const self =  this;
 
     this.ngZone.runOutsideAngular(() => {
-      self.muxerDownloaderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        self.playerProcessWorkerMessage(e);
-      });
       self.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
         self.playerProcessWorkerMessage(e);
       });
@@ -523,6 +523,9 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
         self.playerProcessWorkerMessage(e);
       });
     });
+
+    this.videoDecoderWorker.postMessage( {type: 'connect', jitterBufferSize: this.videoJitterBufferMs!}, [channel1.port1]);
+    this.audioDecoderWorker.postMessage( {type: 'connect', jitterBufferSize: this.audioJitterBufferMs!}, [channel2.port1]);
 
     this.downloaderConfig.urlHostPort = this.url;
     this.downloaderConfig.moqTracks["video"].namespace = this.namespace;
@@ -533,59 +536,16 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
     this.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
     this.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
 
-    this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig});
+    this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig }, [channel1.port2, channel2.port2]);
+
   }
 
   private async playerProcessWorkerMessage(e: MessageEvent<any>) {
 
-    if (e.data.type === "videochunk") {
-      const chunk = e.data.chunk;
-      const seqId = e.data.seqId;
-      const extraData = { captureClkms: e.data.captureClkms, metadata: e.data.metadata }
-      if (this.wtVideoJitterBuffer != null) {
-          const orderedVideoData = this.wtVideoJitterBuffer.AddItem(chunk, seqId, extraData);
-          if (orderedVideoData !== undefined) {
-              // Download is sequential
-              if (orderedVideoData.isDisco) {
-                  console.warn(`VIDEO DISCO detected in seqId: ${orderedVideoData.seqId}`);
-              }
-              if (orderedVideoData.repeatedOrBackwards) {
-                  console.warn(`VIDEO Repeated or backwards chunk, discarding, seqId: ${orderedVideoData.seqId}`);
-              } else {
-                  // Adds pts to wallClk info
-                  this.videoDecoderWorker.postMessage({ type: "videochunk", seqId: orderedVideoData.seqId, chunk: orderedVideoData.chunk, metadata: orderedVideoData.extraData.metadata, isDisco: orderedVideoData.isDisco });
-              }
-          }
-      }
-    } else if (e.data.type === "audiochunk") {
-      const chunk = e.data.chunk;
-      const seqId = e.data.seqId;
-      const extraData = {captureClkms: e.data.captureClkms, metadata: e.data.metadata}
-      if (this.wtAudioJitterBuffer != null) {
-          const orderedAudioData = this.wtAudioJitterBuffer.AddItem(chunk, seqId, extraData);
-          if (orderedAudioData !== undefined) {
-              // Download is sequential
-              if (orderedAudioData.isDisco) {
-                  console.warn(`AUDIO DISCO detected in seqId: ${orderedAudioData.seqId}`);
-              }
-              if (orderedAudioData.repeatedOrBackwards) {
-                  console.warn(`AUDIO Repeated or backwards chunk, discarding, seqId: ${orderedAudioData.seqId}`);
-              } else {
-                  // Adds pts to wallClk info
-                  this.audioDecoderWorker.postMessage({ type: "audiochunk", seqId: orderedAudioData.seqId, chunk: orderedAudioData.chunk, metadata: orderedAudioData.extraData.metadata, isDisco: orderedAudioData.isDisco });
-              }
-          }
-      }
-    // FRAME
-    } else if (e.data.type === "aframe") {
-
+    if (e.data.type === "aframe") {
       const aFrame = e.data.frame;
-
       // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
       const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
-
-      //playerUpdateDecoderUI('audio', timingInfo.decoder.currentAudioTs, buffersInfo.decoder.audio);
-
       if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
           // Initialize the audio worklet node when we know sampling freq used in the capture
           this.playerInitializeAudioContext(aFrame.sampleRate);
@@ -601,9 +561,8 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
           // Set the audio context sampling freq, and pass buffers
           this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
       }
-
       if (this.audioSharedBuffer != null) {
-          // Uses compensated TS
+          // uses compensated TS
           this.audioSharedBuffer.Add(aFrame, curWCompTs);
       }
     } else if (e.data.type === "vframe") {
@@ -612,7 +571,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
           console.warn("Dropped video frame because video renderer is full");
           vFrame.close();
       }
-
     // Downloader STATS
     } else {
       console.error("unknown message: " + JSON.stringify(e.data));
