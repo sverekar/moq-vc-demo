@@ -45,9 +45,7 @@ export class LocPackager {
 
   async ReadBytesToEOF (readerStream) {
     await this.readLOCHeader(readerStream)
-    console.log('readLOCHeader completed')
     this.data = await readUntilEof(readerStream, this.READ_BLOCK_SIZE)
-    console.log('readUntilEof completed')
     this.eof = true
   }
 

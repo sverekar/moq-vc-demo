@@ -143,8 +143,9 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
   private audioDecoderWorker!: Worker;
   private videoDecoderWorker!: Worker;
 
-  private audioCtx: any = null;
+  private audioCtx: any  = null;
   private sourceBufferAudioWorklet:AudioWorkletNode | null = null;
+  gain: GainNode | null  = null;
   private systemAudioLatencyMs: number = 0;
   private audioSharedBuffer:CicularAudioSharedBuffer | null = null;
   private videoPlayerCtx:CanvasRenderingContext2D | null = null;
@@ -282,6 +283,8 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
         this.audioDecoderWorker.terminate();
       }
       this.audioCtx = null;
+      this.gain = null;
+      this.mute = true;
       this.sourceBufferAudioWorklet = null;
       if (this.audioSharedBuffer) {
         this.audioSharedBuffer.Clear();
@@ -395,7 +398,7 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
     this.audioEncoderConfig.encoderConfig.bitrate = audioEncodingBitrateBps;
 
     this.vEncoderWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery });
-    // this.aEncoderWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize });
+    this.aEncoderWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize });
 
     const vTrack = mediaStream.getVideoTracks()[0];
     const vProcessor = new MediaStreamTrackProcessor(vTrack);
@@ -407,7 +410,7 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
 
     // Transfer the readable stream to the worker.
     this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream }, [vFrameStream]);
-    // this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream }, [aFrameStream]);
+    this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream }, [aFrameStream]);
 
   }
 
@@ -433,7 +436,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
         // Send the video frame obtained from v_capture.js to video encoder
         this.vEncoderWorker.postMessage({ type: "vframe", vframe: vFrame }, [vFrame]);
     } else if (e.data.type === "aframe") {
-        console.error('should not recieve audio chunk');
         const aFrame = e.data.data;
         let estimatedDuration = -1;
         if (this.currentAudioTs == undefined) {
@@ -556,7 +558,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
           }
       }
     } else if (e.data.type === "audiochunk") {
-      console.error('should not recieve audio chunk');
       const chunk = e.data.chunk;
       const seqId = e.data.seqId;
       const extraData = {captureClkms: e.data.captureClkms, metadata: e.data.metadata}
@@ -578,39 +579,40 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
     // FRAME
     } else if (e.data.type === "aframe") {
 
-      // const aFrame = e.data.frame;
+      const aFrame = e.data.frame;
 
-      // // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
-      // const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
+      // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
+      const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
 
-      // //playerUpdateDecoderUI('audio', timingInfo.decoder.currentAudioTs, buffersInfo.decoder.audio);
+      //playerUpdateDecoderUI('audio', timingInfo.decoder.currentAudioTs, buffersInfo.decoder.audio);
 
-      // if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
-      //     // Initialize the audio worklet node when we know sampling freq used in the capture
-      //     this.playerInitializeAudioContext(aFrame.sampleRate);
-      // }
-      // // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
-      // if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
-      //     const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
-      //     this.audioSharedBuffer = new CicularAudioSharedBuffer();
-      //     this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
-      //     this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
-      //       console.log(`Audio shared buffer dropped frame `, droppedFrameData)
-      //     });
-      //     // Set the audio context sampling freq, and pass buffers
-      //     this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
-      // }
+      if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+          // Initialize the audio worklet node when we know sampling freq used in the capture
+          this.playerInitializeAudioContext(aFrame.sampleRate);
+      }
+      // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
+      if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
+          const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
+          this.audioSharedBuffer = new CicularAudioSharedBuffer();
+          this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
+          this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
+            console.log(`Audio shared buffer dropped frame `, droppedFrameData)
+          });
+          // Set the audio context sampling freq, and pass buffers
+          this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
+      }
 
-      // if (this.audioSharedBuffer != null) {
-      //     // Uses compensated TS
-      //     // this.audioSharedBuffer.Add(aFrame, curWCompTs);
-      // }
+      if (this.audioSharedBuffer != null) {
+          // Uses compensated TS
+          this.audioSharedBuffer.Add(aFrame, curWCompTs);
+      }
     } else if (e.data.type === "vframe") {
       const vFrame = e.data.frame;
       if (this.videoRendererBuffer !== null && this.videoRendererBuffer.AddItem(vFrame) === false) {
           console.warn("Dropped video frame because video renderer is full");
           vFrame.close();
       }
+
     // Downloader STATS
     } else {
       console.error("unknown message: " + JSON.stringify(e.data));
@@ -620,43 +622,43 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
   animate() {
 
     let data;
-    // if (this.audioSharedBuffer != null) {
-    //   data = this.audioSharedBuffer.GetStats()
-    //   if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
-    //     this.audioSharedBuffer.Play();
-    //   }
-    // }
-    // if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
-    //   // Assuming audioTS in microseconds
-    //   const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
-    //   const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
-    //   //console.log(retData)
-    //   if (retData.vFrame != null) {
-    //       this.playerSetVideoSize(retData.vFrame);
-    //       if (!this.videoFramePrinted) {
-    //         this.videoFramePrinted = true;
-    //         this.ref.detectChanges();
-    //       }
-    //       this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
-    //       (retData.vFrame as VideoFrame).close();
-    //   } else {
-    //      // console.debug("NO FRAME to paint", this.videoRendererBuffer.elementsList.length);
-    //   }
-    // }
-
-    // Only printing video frames and no audio frames.
-    const retData = this.videoRendererBuffer?.GetFirstElement()!;
-    if (retData.vFrame != null) {
-        this.playerSetVideoSize(retData.vFrame);
-        if (!this.videoFramePrinted) {
-          this.videoFramePrinted = true;
-          this.ref.detectChanges();
-        }
-        this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
-        (retData.vFrame as VideoFrame).close();
-    } else {
-       // console.debug("NO FRAME to paint", this.videoRendererBuffer!.elementsList.length);
+    if (this.audioSharedBuffer != null) {
+      data = this.audioSharedBuffer.GetStats()
+      if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
+        this.audioSharedBuffer.Play();
+      }
     }
+    if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
+      // Assuming audioTS in microseconds
+      const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
+      const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
+      //console.log(retData)
+      if (retData.vFrame != null) {
+          this.playerSetVideoSize(retData.vFrame);
+          if (!this.videoFramePrinted) {
+            this.videoFramePrinted = true;
+            this.ref.detectChanges();
+          }
+          this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+          (retData.vFrame as VideoFrame).close();
+      } else {
+         // console.debug("NO FRAME to paint", this.videoRendererBuffer.elementsList.length);
+      }
+    }
+
+    // // Only printing video frames and no audio frames.
+    // const retData = this.videoRendererBuffer?.GetFirstElement()!;
+    // if (retData.vFrame != null) {
+    //     this.playerSetVideoSize(retData.vFrame);
+    //     if (!this.videoFramePrinted) {
+    //       this.videoFramePrinted = true;
+    //       this.ref.detectChanges();
+    //     }
+    //     this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+    //     (retData.vFrame as VideoFrame).close();
+    // } else {
+    //    // console.debug("NO FRAME to paint", this.videoRendererBuffer!.elementsList.length);
+    // }
   }
 
   private playerSetVideoSize(vFrame: VideoFrame) {
@@ -680,12 +682,14 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
 
   private async playerInitializeAudioContext(desiredSampleRate: number) {
     this.audioCtx = await this.audioService.init(desiredSampleRate);
-    this.audioCtx.trans
+    this.gain = this.audioCtx.createGain();
+    (this.gain as GainNode).connect(this.audioCtx.destination);
     this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
     this.sourceBufferAudioWorklet.onprocessorerror = (event) => {
       console.error('Audio worklet error. Err: ' + JSON.stringify(event));
     };
-    this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
+    this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
+    this.gain!.gain.value = 0;
     this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000;
   }
 
