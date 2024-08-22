@@ -17,7 +17,10 @@
   <div class="row" style="margin-left: 20%; margin-right: 20%;">
       <div class="form-row">
         <label class="form-label" style="font-size: medium;">MOQT Relay:</label>
-        <input [disabled]= "!isAnnounce" type="text" class="form-control smaller-input" placeholder="Enter MOQT Relay Endpoint" [(ngModel)]="wtServerUrl">
+        <input type="search" [disabled]= "!isAnnounce" class="form-control smaller-input" list="datalistOptions" placeholder="Enter MOQT Relay Endpoint"  [(ngModel)]="wtServerUrl">
+        <datalist id="datalistOptions">
+          <option *ngFor="let relay of wtServerURLList; index as i" [value]="relay.url"> Zone - {{ relay.zone | uppercase }}</option>
+        </datalist>
       </div>
   </div>
   <div style="display: grid; grid-template-columns: 1fr 2px 1fr;">
@@ -30,7 +33,7 @@
       </div>
       <div class="form-row">
         <label class="form-label">Your Track Name</label>
-        <input [disabled]= "!isAnnounce"  type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="trackName">
+        <input [disabled]= "true"  type="text" class="form-control smaller-input" placeholder="Enter your track name" [(ngModel)]="trackName">
       </div>
       <div class="form-row">
         <label class="form-label">Auth Info</label>
@@ -171,10 +174,10 @@
       </div>
       <div class="form-row" style="margin-left: 10px; margin-right: 10px; margin-bottom: 0px;">
         <label class="form-label" style="align-self: end;">Peer Track Name: </label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter peer's track name" [(ngModel)]="peerTrackName">
+        <input [disabled]="true" type="text" class="form-control smaller-input" placeholder="Enter peer's track name" [(ngModel)]="peerTrackName">
       </div>
 
-      <button (click)="subscribePeer()" [disabled]= "peerNamespace.length === 0 || peerTrackName.length === 0" type="button" class="btn btn-primary" style="font-size: 12px; line-height: 1.5; border-radius: 3px; margin-right: 5px;">
+      <button (click)="subscribePeer()" [disabled]= "peerNamespace.length === 0 || peerTrackName.length === 0 || wtServerUrl.length === 0" type="button" class="btn btn-primary" style="font-size: 12px; line-height: 1.5; border-radius: 3px; margin-right: 5px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person-add" viewBox="0 0 16 16">
           <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7m.5-5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1h-1a.5.5 0 0 1 0-1h1v-1a.5.5 0 0 1 1 0m-2-6a3 3 0 1 1-6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4"/>
           <path d="M8.256 14a4.5 4.5 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10q.39 0 .74.025c.226-.341.496-.65.804-.918Q8.844 9.002 8 9c-5 0-6 3-6 4s1 1 1 1z"/>
@@ -182,7 +185,7 @@
         Subscribe
       </button>
 
-      <button (click)="announceOrStop()" [disabled]= "!readyToPublish" type="button" [ngClass]=" isAnnounce ? 'btn btn-success': 'btn btn-danger'" style="font-size: 12px; line-height: 1.5; border-radius: 3px;">
+      <button (click)="announceOrStop()" [disabled]= "!readyToPublish || wtServerUrl.length === 0" type="button" [ngClass]=" isAnnounce ? 'btn btn-success': 'btn btn-danger'" style="font-size: 12px; line-height: 1.5; border-radius: 3px;">
         <svg *ngIf="isAnnounce" width="16" height="16" fill="currentColor" class="bi bi-headset" viewBox="0 0 16 16">
           <path d="M8 1a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a6 6 0 1 1 12 0v6a2.5 2.5 0 0 1-2.5 2.5H9.366a1 1 0 0 1-.866.5h-1a1 1 0 1 1 0-2h1a1 1 0 0 1 .866.5H11.5A1.5 1.5 0 0 0 13 12h-1a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1V6a5 5 0 0 0-5-5"/>
         </svg>

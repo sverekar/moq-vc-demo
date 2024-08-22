@@ -1,10 +1,12 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, EventEmitter, inject, NgZone, OnInit, Output, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
 import { NgbActiveModal, NgbModal, NgbModule } from '@ng-bootstrap/ng-bootstrap';
-import { from } from 'rxjs';
+import { forkJoin, from } from 'rxjs';
 import { PersonComponent } from './person/person.component';
+import { RelayService } from './relay.service';
+import { cosineDistanceBetweenPoints } from './common';
 
 @Component({
   selector: 'app-root',
@@ -22,7 +24,8 @@ import { PersonComponent } from './person/person.component';
 export class AppComponent implements OnInit {
 
   // Announcer common configuration
-  wtServerUrl: string = "https://moq-akamai-relay.akalab.ca:8843/moq";
+  wtServerURLList: Array<{zone: string, url: string}> = [];
+  wtServerUrl: string = '';
   meNamespace: string = 'Guest' //crypto.randomUUID();
   trackName: string = 'Main';
   peerNamespace: string = 'Guest';
@@ -68,7 +71,7 @@ export class AppComponent implements OnInit {
 
   @ViewChildren('subsriber') subscribers!: QueryList<PersonComponent>;
 
-  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone) {
+  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService) {
 
     this.videoResolutions.push({width: 320, height: 180, fps: 30, level: 13})
     this.videoResolutions.push({width: 320, height: 180, fps: 15, level: 12})
@@ -86,6 +89,21 @@ export class AppComponent implements OnInit {
   async ngOnInit(): Promise<void>{
 
     const self = this;
+
+    forkJoin([
+      this.relayService.getCurrentPosition(),
+      this.relayService.getRelays()
+    ]).subscribe((res: any) => {
+      if (res[1].length > 0) {
+        let relays = res[1];
+        relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
+        this.wtServerURLList = this.getRelays(relays, res[0])
+        // For testing
+        this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
+        this.wtServerUrl = this.wtServerURLList[0].url;
+      }
+    });
+
     // @ts-ignore
     navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
     // @ts-ignore
@@ -199,6 +217,32 @@ export class AppComponent implements OnInit {
       }
     }
     this.animFrame = requestAnimationFrame(this.handleVideoAnimationPlay.bind(this));
+  }
+
+  private getRelays(relays: Array<{ url: string, coordinates:Array<number>, zone: string}>, location: {lat: number, lng: number} | undefined): Array<{ zone: string, url: string }> {
+    const resp = [];
+    if (location !== undefined) {
+      let minIndex = -1;
+      let minD = Number.MAX_SAFE_INTEGER
+      for (let i=0; i< relays.length; i++) {
+        const relay = relays[i];
+        const dist = cosineDistanceBetweenPoints(location.lat, location.lng, relay.coordinates[1], relay.coordinates[0]);
+        if (dist < minD) {
+          minD = dist;
+          minIndex = i;
+        }
+        resp[i] = { zone: relay.zone, url: relay.url};
+      }
+      // entry at 0 always points to closest
+      const closest = resp[minIndex];
+      resp[minIndex] = resp[0];
+      resp[0] = closest;
+    } else {
+      relays.forEach((relay: any) => {
+        resp.push({ zone: relay.zone.toUpperCase(), url: relay.url });
+      })
+    }
+    return resp;
   }
 }
 
