@@ -91,7 +91,7 @@ self.addEventListener('message', async function (e) {
 
   if (vEncoder.encodeQueueSize > encoderMaxQueueSize) {
     // Too many frames in the encoder queue, encoder is overwhelmed let's not add this frame
-    console.debug(WORKER_PREFIX + 'Dropped encoding video frame due to encodeQueueSize is full');
+    // console.debug(WORKER_PREFIX + 'Dropped encoding video frame due to encodeQueueSize is full');
     // sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), ts: vFrame.timestamp, msg: 'Dropped encoding video frame' })
     vFrame.close()
     // Insert a keyframe after dropping

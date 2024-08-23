@@ -15,7 +15,7 @@ declare const MediaStreamTrackProcessor: any;
   styleUrl: './person.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PersonComponent implements OnInit, OnChanges, OnDestroy {
+export class PersonComponent implements OnInit, OnChanges {
 
   @Input() url!: string;
   @Input() auth!: string;
@@ -152,10 +152,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
 
   constructor(private ngZone: NgZone, private ref: ChangeDetectorRef, private audioService: AudioService ) {}
 
-  ngOnDestroy(): void {
-    this.stop();
-  }
-
   ngOnInit(): void {
 
     if (window.crossOriginIsolated) {
@@ -254,7 +250,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
       }
       if (this.muxerSenderWorker) {
         this.muxerSenderWorker.postMessage(stopMsg);
-        this.muxerSenderWorker.terminate();
       }
       this.currentAudioTs = undefined;
       this.currentVideoTs = undefined;
@@ -472,7 +467,7 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
         const seqId = e.data.seqId;
         const itemTsClk = this.audioTimeChecker.GetItemByTs(chunk.timestamp);
         if (!itemTsClk.valid) {
-            console.warn(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
+            // console.warn(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
         }
         // Send the encoded audio chunk obtained from a_encoder.js to moq_sender.js
         this.muxerSenderWorker.postMessage({ type: "audio", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, seqId: seqId, chunk: chunk, metadata: metadata });

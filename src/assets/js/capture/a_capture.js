@@ -5,8 +5,6 @@ This source code is licensed under the MIT license found in the
 LICENSE file in the root directory of this source tree.
 */
 
-import { sendMessageToMain } from '../utils/utils.js'
-
 const WORKER_PREFIX = '[AUDIO-CAP]'
 
 let stopped = false

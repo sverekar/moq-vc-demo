@@ -80,12 +80,13 @@ self.addEventListener('message', async function (e) {
       await moqClose(moqt)
       console.info(WORKER_PREFIX + ` Muxer stopped !!`)
     } catch (err) {
-      if (MOQT_DEV_MODE) { throw err }
+      // if (MOQT_DEV_MODE) { throw err }
       // Expected to finish some promises with abort error
       // The abort "errors" are already sent to main "thead" by sendMessageToMain inside the promise
-      console.error(WORKER_PREFIX + ` Aborting / closing streams while exiting. Err: ${err.message}`)
+      console.info(WORKER_PREFIX + ` Aborting / closing streams while exiting. Err: ${err.message}`)
       // sendMessageToMain(WORKER_PREFIX, 'info', `Aborting / closing streams while exiting. Err: ${err.message}`)
     }
+    self.close()
     return
   }
 

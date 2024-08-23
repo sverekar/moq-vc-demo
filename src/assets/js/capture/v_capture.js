@@ -31,7 +31,6 @@ function mainLoop (frameReader) {
         mainLoopInterval = undefined
       }
       console.log(WORKER_PREFIX + ' Exited!')
-      // sendMessageToMain(WORKER_PREFIX, 'info', 'Exited!')
       isMainLoopInExecution = false
       return resolve(false)
     }
@@ -40,7 +39,6 @@ function mainLoop (frameReader) {
       .then(result => {
         if (result.done) {
           console.log(WORKER_PREFIX + ' Stream is done!')
-          // sendMessageToMain(WORKER_PREFIX, 'info', 'Stream is done')
           return frameReader.cancel('ended')
         } else {
           return new Promise(function (resolve) { return resolve(result) })
@@ -51,9 +49,6 @@ function mainLoop (frameReader) {
           return resolve(false)
         } else {
           const vFrame = result.value
-
-          // sendMessageToMain(WORKER_PREFIX, 'debug', 'Read frame format: ' + vFrame.format + ', ts: ' + vFrame.timestamp + ', dur: ' + vFrame.duration)
-
           // Send frame to process
           self.postMessage({ type: 'vframe', clkms: Date.now(), data: vFrame }, [vFrame])
           // vFrame.close();
@@ -85,15 +80,12 @@ self.addEventListener('message', async function (e) {
   if (type === 'stream') {
     if (mainLoopInterval !== undefined) {
       console.error(WORKER_PREFIX + ' Loop already running')
-      // sendMessageToMain(WORKER_PREFIX, 'error', 'Loop already running')
       return
     }
     const vFrameStream = e.data.vStream
     const vFrameReader = vFrameStream.getReader()
-    // sendMessageToMain(WORKER_PREFIX, 'info', 'Received streams from main page, starting worker loop')
     mainLoopInterval = setInterval(mainLoop, 1, vFrameReader)
     return
   }
   console.error(WORKER_PREFIX, ' Invalid message received.')
-  // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')
 })

@@ -104,7 +104,7 @@ self.addEventListener('message', async function (e) {
   if (aEncoder.encodeQueueSize > encoderMaxQueueSize) {
     // Too many frames in the encoder, encoder is overwhelmed let's drop this frame.
     // sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), ts: aFrame.timestamp, msg: 'Dropped encoding audio frame' })
-    console.debug(WORKER_PREFIX + 'Dropped encoding audio frame due to encodeQueueSize is full');
+    // console.debug(WORKER_PREFIX + 'Dropped encoding audio frame due to encodeQueueSize is full');
     aFrame.close()
   } else {
     // sendMessageToMain(WORKER_PREFIX, 'debug', 'Send to encode frame ts: ' + aFrame.timestamp + '. Counter: ' + frameDeliveredCounter++)
