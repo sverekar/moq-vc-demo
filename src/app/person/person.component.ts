@@ -333,25 +333,38 @@ export class PersonComponent implements OnInit, OnChanges {
 
       this.createWebWorkers();
 
+      const self = this;
+
+      // this.ngZone.runOutsideAngular(() => {
+      //   this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+      //     if (e.data.type === 'started') {
+      //       this.initalizeWorkers(videoEncodingBitrateBps,videoEncodingKeyFrameEvery, audioEncodingBitrateBps, mediaStream);
+      //     } else {
+      //       this.encoderProcessWorkerMessage(e);
+      //     }
+      //   });
+      //   this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
+      //     this.encoderProcessWorkerMessage(e);
+      //   });
+      //   this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
+      //     this.encoderProcessWorkerMessage(e);
+      //   });
+      //   this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+      //     this.encoderProcessWorkerMessage(e);
+      //   });
+      //   this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+      //     this.encoderProcessWorkerMessage(e);
+      //   });
+      // });
+
+      const channel1 = new MessageChannel();
+      const channel2 = new MessageChannel();
+
       this.ngZone.runOutsideAngular(() => {
-        this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+        self.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
           if (e.data.type === 'started') {
-            this.initalizeWorkers(videoEncodingBitrateBps,videoEncodingKeyFrameEvery, audioEncodingBitrateBps, mediaStream);
-          } else {
-            this.encoderProcessWorkerMessage(e);
+            self.initalizeWorkers(videoEncodingBitrateBps,videoEncodingKeyFrameEvery, audioEncodingBitrateBps, mediaStream, channel1, channel2);
           }
-        });
-        this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
-        });
-        this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-          this.encoderProcessWorkerMessage(e);
         });
       });
 
@@ -369,7 +382,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
       this.muxerSenderConfig.urlHostPort = this.url!;
 
-      this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig });
+      this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig }, [channel1.port2, channel2.port2]);
 
       return Promise.resolve(true);
 
@@ -379,9 +392,8 @@ export class PersonComponent implements OnInit, OnChanges {
     }
   }
 
-  private initalizeWorkers(videoEncodingBitrateBps: number, videoEncodingKeyFrameEvery: number, audioEncodingBitrateBps: number, mediaStream: any) {
+  private initalizeWorkers(videoEncodingBitrateBps: number, videoEncodingKeyFrameEvery: number, audioEncodingBitrateBps: number, mediaStream: any, channel1: MessageChannel, channel2: MessageChannel) {
 
-    // Load video encoding settings
     this.videoEncoderConfig.encoderConfig.width = this.resolution!.width;
     this.videoEncoderConfig.encoderConfig.height = this.resolution!.height;
     this.videoEncoderConfig.encoderConfig.framerate = this.resolution!.fps;
@@ -392,8 +404,8 @@ export class PersonComponent implements OnInit, OnChanges {
     // Load audio encoding settings
     this.audioEncoderConfig.encoderConfig.bitrate = audioEncodingBitrateBps;
 
-    this.vEncoderWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery });
-    this.aEncoderWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize });
+    this.vStreamWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery }, [channel1.port1]);
+    this.aStreamWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize }, [channel2.port1]);
 
     const vTrack = mediaStream.getVideoTracks()[0];
     const vProcessor = new MediaStreamTrackProcessor(vTrack);
@@ -403,10 +415,10 @@ export class PersonComponent implements OnInit, OnChanges {
     const aProcessor = new MediaStreamTrackProcessor(aTrack);
     const aFrameStream = aProcessor.readable;
 
-    // Transfer the readable stream to the worker.
-    this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream }, [vFrameStream]);
-    this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream }, [aFrameStream]);
+    const sharedBuffer = new SharedArrayBuffer( 2 * BigInt64Array.BYTES_PER_ELEMENT);
 
+    this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream, sharedBuffer }, [vFrameStream]);
+    this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream, sharedBuffer }, [aFrameStream]);
   }
 
   private encoderProcessWorkerMessage(e: MessageEvent<any>): void {
@@ -482,15 +494,20 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private createWebWorkers() {
 
-    // Create send worker
-    this.muxerSenderWorker = new Worker("../../assets/js/sender/moq_sender.js", { type: "module" });
+    this.muxerSenderWorker = new Worker("../../assets/js/sender/opt_moq_sender.js", { type: "module" });
 
-    // Create a new workers for video / audio frames encode
-    this.vEncoderWorker = new Worker("../../assets/js/encode/v_encoder.js", { type: "module" });
-    this.aEncoderWorker = new Worker("../../assets/js/encode/a_encoder.js", { type: "module" });
+    // // Create send worker
+    // this.muxerSenderWorker = new Worker("../../assets/js/sender/moq_sender.js", { type: "module" });
 
-    this.vStreamWorker = new Worker("../../assets/js/capture/v_capture.js", { type: "module" });
-    this.aStreamWorker = new Worker("../../assets/js/capture/a_capture.js", { type: "module" });
+    // // Create a new workers for video / audio frames encode
+    // this.vEncoderWorker = new Worker("../../assets/js/encode/v_encoder.js", { type: "module" });
+    // this.aEncoderWorker = new Worker("../../assets/js/encode/a_encoder.js", { type: "module" });
+
+    // this.vStreamWorker = new Worker("../../assets/js/capture/v_capture.js", { type: "module" });
+    // this.aStreamWorker = new Worker("../../assets/js/capture/a_capture.js", { type: "module" });
+
+    this.vStreamWorker = new Worker("../../assets/js/capture/opt_v_capture.js", { type: "module" });
+    this.aStreamWorker = new Worker("../../assets/js/capture/opt_a_capture.js", { type: "module" });
   }
 
   // SUBCRIBER Functions
