@@ -503,8 +503,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
   private loadPlayer() {
 
     this.videoRendererBuffer = new VideoRenderBuffer();
-    // this.wtVideoJitterBuffer = new JitterBuffer(this.videoJitterBufferMs!, (data: any) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
-    // this.wtAudioJitterBuffer = new JitterBuffer(this.audioJitterBufferMs!, (data: any) =>  console.warn(`[AUDIO-JITTER] Dropped late audio frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
 
     const channel1 = new MessageChannel();
     const channel2 = new MessageChannel();
@@ -555,9 +553,6 @@ export class PersonComponent implements OnInit, OnChanges, OnDestroy {
           const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
           this.audioSharedBuffer = new CicularAudioSharedBuffer();
           this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
-          this.audioSharedBuffer.SetCallbacks((droppedFrameData: any) => {
-            console.log(`Audio shared buffer dropped frame `, droppedFrameData)
-          });
           // Set the audio context sampling freq, and pass buffers
           this.sourceBufferAudioWorklet.port.postMessage({ type: 'iniabuffer', config: { contextSampleFrequency: this.audioCtx.sampleRate, circularBufferSizeSamples: bufferSizeSamples, cicularAudioSharedBuffers: this.audioSharedBuffer.GetSharedBuffers(), sampleFrequency: aFrame.sampleRate } });
       }

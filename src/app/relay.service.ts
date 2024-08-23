@@ -34,11 +34,6 @@ export class RelayService {
 
   getRelays(mock?: boolean) {
 
-    // For testing: comment it out later
-    if (mock) {
-      return of([{ 'url': 'https://moq-akamai-relay.akalab.ca:8843/moq', 'coordinates': [80.2705, 13.0843] ,'zone': 'maa'}])
-    }
-
     const headerDict = {
       'Accept': 'application/json',
       'Authorization': 'Basic SERCX0FETUlOOnBhc3N3b3Jk'

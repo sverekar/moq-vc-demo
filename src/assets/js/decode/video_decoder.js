@@ -28,7 +28,9 @@ const maxQueuedChunks = MAX_QUEUED_CHUNKS_DEFAULT
 
 const ptsQueue = new TsQueue()
 
-const wtVideoJitterBuffer = new JitterBuffer(200, (data) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+// const wtVideoJitterBuffer = new JitterBuffer(200, (data) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+
+const wtVideoJitterBuffer = new JitterBuffer(200);
 
 function processVideoFrame (vFrame) {
   self.postMessage({ type: 'vframe', frame: vFrame, queueSize: ptsQueue.getPtsQueueLengthInfo().size, queueLengthMs: ptsQueue.getPtsQueueLengthInfo().lengthMs }, [vFrame])
@@ -52,10 +54,10 @@ function processVChunk(e) {
     if (orderedVideoData !== undefined) {
       // Download is sequential
       if (orderedVideoData.isDisco) {
-          console.warn(WORKER_PREFIX + ` VIDEO DISCO detected in seqId: ${orderedVideoData.seqId}`);
+         // console.warn(WORKER_PREFIX + ` VIDEO DISCO detected in seqId: ${orderedVideoData.seqId}`);
       }
       if (orderedVideoData.repeatedOrBackwards) {
-          console.warn(WORKER_PREFIX + ` VIDEO Repeated or backwards chunk, discarding, seqId: ${orderedVideoData.seqId}`);
+          // console.warn(WORKER_PREFIX + ` VIDEO Repeated or backwards chunk, discarding, seqId: ${orderedVideoData.seqId}`);
       } else {
         // this.videoDecoderWorker.postMessage({ type: "videochunk", seqId: orderedVideoData.seqId, chunk: orderedVideoData.chunk, metadata: orderedVideoData.extraData.metadata, isDisco: orderedVideoData.isDisco });
         if (orderedVideoData.extraData.metadata !== undefined && orderedVideoData.extraData.metadata != null) {
@@ -105,7 +107,7 @@ function processVChunk(e) {
 
         if (videoDecoder.decodeQueueSize >= maxQueuedChunks) {
           discardedBufferFull++
-          console.warn(WORKER_PREFIX + ' Discarded video chunks because decoder buffer is full')
+          // console.warn(WORKER_PREFIX + ' Discarded video chunks because decoder buffer is full')
           // sendMessageToMain(WORKER_PREFIX, 'warning', 'Discarded ' + discardedBufferFull + ' video chunks because decoder buffer is full')
           return
         }
@@ -124,7 +126,7 @@ function processVChunk(e) {
           discardedDelta++
         } else {
           if (discardedDelta > 0) {
-            console.warn(WORKER_PREFIX + ` Discarded ${discardedDelta} video chunks before key`)
+            // console.warn(WORKER_PREFIX + ` Discarded ${discardedDelta} video chunks before key`)
             // sendMessageToMain(WORKER_PREFIX, 'warning', 'Discarded ' + discardedDelta + ' video chunks before key')
           }
           discardedDelta = 0

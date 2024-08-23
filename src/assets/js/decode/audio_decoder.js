@@ -24,7 +24,10 @@ let lastChunkSentTimestamp = -1
 
 const ptsQueue = new TsQueue()
 
-const wtAudioJitterBuffer = new JitterBuffer(200, (data) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+//const wtAudioJitterBuffer = new JitterBuffer(200, (data) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
+
+const wtAudioJitterBuffer = new JitterBuffer(200);
+
 
 function processAudioFrame (aFrame) {
   self.postMessage({ type: 'aframe', frame: aFrame, queueSize: ptsQueue.getPtsQueueLengthInfo().size, queueLengthMs: ptsQueue.getPtsQueueLengthInfo().lengthMs, timestampCompensationOffset: timestampOffset }, [aFrame])
@@ -40,10 +43,10 @@ function processAChunk(event) {
     if (orderedAudioData !== undefined) {
       // Download is sequential
       if (orderedAudioData.isDisco) {
-          console.warn(WORKER_PREFIX + ` AUDIO DISCO detected in seqId: ${orderedAudioData.seqId}`);
+          // console.warn(WORKER_PREFIX + ` AUDIO DISCO detected in seqId: ${orderedAudioData.seqId}`);
       }
       if (orderedAudioData.repeatedOrBackwards) {
-          console.warn(WORKER_PREFIX + ` AUDIO Repeated or backwards chunk, discarding, seqId: ${orderedAudioData.seqId}`);
+          // console.warn(WORKER_PREFIX + ` AUDIO Repeated or backwards chunk, discarding, seqId: ${orderedAudioData.seqId}`);
       } else {
           // Adds pts to wallClk info
           if (orderedAudioData.extraData.metadata !== undefined && orderedAudioData.extraData.metadata !== null) {
