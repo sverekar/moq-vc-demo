@@ -220,7 +220,7 @@ self.addEventListener('message', async function (e) {
     sendChunkToTransport(chunkData, subscribeId, trackAlias, getNumInflightRequestByType(moqt, type), tracks[type].maxInFlightRequests, moqMapping)
     .then(val => {
       if (val !== undefined && val.dropped === true) {
-        console.warn(WORKER_PREFIX + ` Dropped CHUNK ${type} - message: ${val.message}`);
+        // console.warn(WORKER_PREFIX + ` Dropped CHUNK ${type} - message: ${val.message}`);
         // sendMessageToMain(WORKER_PREFIX, 'dropped', { clkms: Date.now(), seqId, mediaType: type, ts: chunkData.timestamp, msg: val.message })
       } else {
         // sendMessageToMain(WORKER_PREFIX, 'debug', `SENT CHUNK ${type} - seqId: ${seqId} for subscribeId: ${subscribeId}, trackAlias: ${trackAlias}`)
