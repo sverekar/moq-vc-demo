@@ -28,6 +28,7 @@ export class PersonComponent implements OnInit, OnChanges {
   @Input() playerMaxBufferMs: number | undefined
   @Input() audioJitterBufferMs: number | undefined
   @Input() videoJitterBufferMs: number | undefined
+  @Input() onlyVideo: boolean | undefined
 
   @Input() index!: number
 
@@ -404,8 +405,10 @@ export class PersonComponent implements OnInit, OnChanges {
     // Load audio encoding settings
     this.audioEncoderConfig.encoderConfig.bitrate = audioEncodingBitrateBps;
 
-    this.vStreamWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery }, [channel1.port1]);
-    this.aStreamWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize }, [channel2.port1]);
+    this.vStreamWorker.postMessage({ type: "vencoderini", encoderConfig: this.videoEncoderConfig.encoderConfig, encoderMaxQueueSize: this.videoEncoderConfig.encoderMaxQueueSize, keyframeEvery: this.videoEncoderConfig.keyframeEvery, onlyVideo: this.onlyVideo }, [channel1.port1]);
+    if (!this.onlyVideo) {
+      this.aStreamWorker.postMessage({ type: "aencoderini", encoderConfig: this.audioEncoderConfig.encoderConfig, encoderMaxQueueSize: this.audioEncoderConfig.encoderMaxQueueSize }, [channel2.port1]);
+    }
 
     const vTrack = mediaStream.getVideoTracks()[0];
     const vProcessor = new MediaStreamTrackProcessor(vTrack);
@@ -418,7 +421,9 @@ export class PersonComponent implements OnInit, OnChanges {
     const sharedBuffer = new SharedArrayBuffer( 2 * BigInt64Array.BYTES_PER_ELEMENT);
 
     this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream, sharedBuffer }, [vFrameStream]);
-    this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream, sharedBuffer }, [aFrameStream]);
+    if (!this.onlyVideo) {
+      this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream, sharedBuffer }, [aFrameStream]);
+    }
   }
 
   private encoderProcessWorkerMessage(e: MessageEvent<any>): void {
@@ -507,7 +512,9 @@ export class PersonComponent implements OnInit, OnChanges {
     // this.aStreamWorker = new Worker("../../assets/js/capture/a_capture.js", { type: "module" });
 
     this.vStreamWorker = new Worker("../../assets/js/capture/opt_v_capture.js", { type: "module" });
-    this.aStreamWorker = new Worker("../../assets/js/capture/opt_a_capture.js", { type: "module" });
+    if (!this.onlyVideo) {
+      this.aStreamWorker = new Worker("../../assets/js/capture/opt_a_capture.js", { type: "module" });
+    }
   }
 
   // SUBCRIBER Functions
@@ -520,7 +527,9 @@ export class PersonComponent implements OnInit, OnChanges {
     const channel2 = new MessageChannel();
 
     this.muxerDownloaderWorker = new Worker("../../assets/js/receiver/moq_demuxer_downloader.js", {type: "module"});
-    this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
+    if (!this.onlyVideo) {
+      this.audioDecoderWorker = new Worker("../../assets/js/decode/audio_decoder.js", {type: "module"});
+    }
     this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
     const self =  this;
@@ -529,13 +538,18 @@ export class PersonComponent implements OnInit, OnChanges {
       self.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
         self.playerProcessWorkerMessage(e);
       });
-      self.audioDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-        self.playerProcessWorkerMessage(e);
-      });
+      if (!self.onlyVideo) {
+        self.audioDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
+          self.playerProcessWorkerMessage(e);
+        });
+      }
     });
 
     this.videoDecoderWorker.postMessage( {type: 'connect', jitterBufferSize: this.videoJitterBufferMs!}, [channel1.port1]);
-    this.audioDecoderWorker.postMessage( {type: 'connect', jitterBufferSize: this.audioJitterBufferMs!}, [channel2.port1]);
+
+    if (!self.onlyVideo){
+      this.audioDecoderWorker.postMessage( {type: 'connect', jitterBufferSize: this.audioJitterBufferMs!}, [channel2.port1]);
+    }
 
     this.downloaderConfig.urlHostPort = this.url;
     this.downloaderConfig.moqTracks["video"].namespace = this.namespace;
@@ -585,19 +599,9 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   animate() {
-
     let data;
-    if (this.audioSharedBuffer != null) {
-      data = this.audioSharedBuffer.GetStats()
-      if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
-        this.audioSharedBuffer.Play();
-      }
-    }
-    if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
-      // Assuming audioTS in microseconds
-      const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
-      const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
-      //console.log(retData)
+    if (this.onlyVideo) {
+      const retData = this.videoRendererBuffer?.GetFirstElement()!;
       if (retData.vFrame != null) {
           this.playerSetVideoSize(retData.vFrame);
           if (!this.videoFramePrinted) {
@@ -606,24 +610,30 @@ export class PersonComponent implements OnInit, OnChanges {
           }
           this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
           (retData.vFrame as VideoFrame).close();
-      } else {
-         // console.debug("NO FRAME to paint", this.videoRendererBuffer.elementsList.length);
+      }
+    } else {
+      if (this.audioSharedBuffer != null) {
+        data = this.audioSharedBuffer.GetStats()
+        if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
+          this.audioSharedBuffer.Play();
+        }
+      }
+      if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
+        // Assuming audioTS in microseconds
+        const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
+        const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
+        //console.log(retData)
+        if (retData.vFrame != null) {
+            this.playerSetVideoSize(retData.vFrame);
+            if (!this.videoFramePrinted) {
+              this.videoFramePrinted = true;
+              this.ref.detectChanges();
+            }
+            this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+            (retData.vFrame as VideoFrame).close();
+        }
       }
     }
-
-    // // Only printing video frames and no audio frames.
-    // const retData = this.videoRendererBuffer?.GetFirstElement()!;
-    // if (retData.vFrame != null) {
-    //     this.playerSetVideoSize(retData.vFrame);
-    //     if (!this.videoFramePrinted) {
-    //       this.videoFramePrinted = true;
-    //       this.ref.detectChanges();
-    //     }
-    //     this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
-    //     (retData.vFrame as VideoFrame).close();
-    // } else {
-    //    // console.debug("NO FRAME to paint", this.videoRendererBuffer!.elementsList.length);
-    // }
   }
 
   private playerSetVideoSize(vFrame: VideoFrame) {

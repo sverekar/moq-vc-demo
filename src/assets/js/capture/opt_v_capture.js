@@ -33,6 +33,9 @@ let workerState = StateEnum.Created
 let encoderMaxQueueSize = 5
 let keyframeEvery = 60
 let insertNextKeyframe = false
+
+let onlyVideo = false;
+
 // Encoder
 const initVideoEncoder = {
   output: handleChunk,
@@ -92,19 +95,27 @@ function mainLoop (frameReader) {
         } else {
           const vFrame = new VideoFrame(result.value)
           result.value.close();
-          if (currentVideoTs === undefined) {
-            const arr = new BigInt64Array(sharedBuffer);
-            audioOffsetTS = Number(Atomics.load(arr, 1));
-            if (audioOffsetTS === 0 ){
-              // Skip this frame as we wait for the audio frame first. i.e audio frame always start from 0
-              vFrame.close();
-              isMainLoopInExecution = false
-              return;
+          if (!onlyVideo) {
+            if (currentVideoTs === undefined) {
+              const arr = new BigInt64Array(sharedBuffer);
+              audioOffsetTS = Number(Atomics.load(arr, 1));
+              if (audioOffsetTS === 0 ){
+                // Skip this frame as we wait for the audio frame first. i.e audio frame always start from 0
+                vFrame.close();
+                isMainLoopInExecution = false
+                return;
+              }
+              currentAudioTs = Number(Atomics.load(arr, 0));
+              videoOffsetTS = -vFrame.timestamp + currentAudioTs + audioOffsetTS;
+            } else {
+              estimatedDuration = vFrame.timestamp - currentVideoTs;
             }
-            currentAudioTs = Number(Atomics.load(arr, 0));
-            videoOffsetTS = -vFrame.timestamp + currentAudioTs + audioOffsetTS;
           } else {
-            estimatedDuration = vFrame.timestamp - currentVideoTs;
+            if (currentVideoTs === undefined) {
+              videoOffsetTS = -vFrame.timestamp
+            } else {
+              estimatedDuration = vFrame.timestamp - currentVideoTs;
+            }
           }
           currentVideoTs = vFrame.timestamp;
           videoTimeChecker.AddItem({ ts: currentVideoTs, compensatedTs: currentVideoTs + videoOffsetTS, estimatedDuration: estimatedDuration, clkms: Date.now()});
@@ -178,6 +189,7 @@ self.addEventListener('message', async function (e) {
     if ('keyframeEvery' in e.data) {
       keyframeEvery = e.data.keyframeEvery
     }
+    onlyVideo = e.data.onlyVideo;
     console.log(WORKER_PREFIX + 'Encoder initialized');
     return
   }
