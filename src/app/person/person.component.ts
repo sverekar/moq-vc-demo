@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
-import { CicularAudioSharedBuffer, JitterBuffer, TimeBufferChecker, VideoRenderBuffer } from '../common';
+import { CicularAudioSharedBuffer, VideoRenderBuffer } from '../common';
 import { AudioService } from '../audio.service';
 
 declare const MediaStreamTrackProcessor: any;
@@ -49,12 +49,9 @@ export class PersonComponent implements OnInit, OnChanges {
   // Me variables
   private vStreamWorker!: Worker;
   private aStreamWorker!: Worker;
-  private vEncoderWorker!: Worker;
-  private aEncoderWorker!: Worker;
   private muxerSenderWorker!: Worker;
 
   private AUDIO_STOPPED = 0;
-
 
   private videoEncoderConfig = {
     encoderConfig: {
@@ -129,17 +126,7 @@ export class PersonComponent implements OnInit, OnChanges {
     height: -1
   }
 
-  private videoTimeChecker!: TimeBufferChecker;
-  private audioTimeChecker!: TimeBufferChecker;
-  private currentAudioTs: number | undefined = undefined;
-  private currentVideoTs: number | undefined = undefined;
-  private videoOffsetTS: number | undefined = undefined;
-  private audioOffsetTS: number | undefined = undefined;
-
-  // Subscriber / Guest Variable
   private videoRendererBuffer : VideoRenderBuffer | null = null;
-  private wtVideoJitterBuffer : JitterBuffer | null = null;
-  private wtAudioJitterBuffer : JitterBuffer | null = null;
   private muxerDownloaderWorker!: Worker;
   private audioDecoderWorker!: Worker;
   private videoDecoderWorker!: Worker;
@@ -155,17 +142,13 @@ export class PersonComponent implements OnInit, OnChanges {
 
   ngOnInit(): void {
 
-    if (window.crossOriginIsolated) {
-      console.log("crossOriginIsolated enabled, we can use SharedArrayBuffer");
-    } else {
-      console.warn("crossOriginIsolated NOT enabled, we can NOT use SharedArrayBuffer");
+    if (!window.crossOriginIsolated) {
+      console.error("we can NOT use SharedArrayBuffer");
     }
+
     // If subscriber, we have all the information required.
     if (!this.self) {
       this.loadPlayer();
-    } else {
-      this.audioTimeChecker = new TimeBufferChecker("audio");
-      this.videoTimeChecker = new TimeBufferChecker("video");
     }
   }
 
@@ -233,6 +216,9 @@ export class PersonComponent implements OnInit, OnChanges {
     if (this.self) {
       // Clear me / announce variables
       const stopMsg = { type: "stop" };
+      if (this.muxerSenderWorker) {
+        this.muxerSenderWorker.postMessage(stopMsg);
+      }
       if (this.aStreamWorker) {
         this.aStreamWorker.postMessage(stopMsg);
         this.aStreamWorker.terminate();
@@ -240,27 +226,6 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.vStreamWorker) {
         this.vStreamWorker.postMessage(stopMsg);
         this.vStreamWorker.terminate();
-      }
-      if (this.vEncoderWorker) {
-        this.vEncoderWorker.postMessage(stopMsg);
-        this.vEncoderWorker.terminate();
-      }
-      if (this.aEncoderWorker) {
-        this.aEncoderWorker.postMessage(stopMsg);
-        this.aEncoderWorker.terminate();
-      }
-      if (this.muxerSenderWorker) {
-        this.muxerSenderWorker.postMessage(stopMsg);
-      }
-      this.currentAudioTs = undefined;
-      this.currentVideoTs = undefined;
-      this.videoOffsetTS = undefined;
-      this.audioOffsetTS = undefined;
-      if (this.audioTimeChecker !== null) {
-        this.audioTimeChecker.Clear();
-      }
-      if (this.videoTimeChecker !== null) {
-        this.videoTimeChecker.Clear();
       }
     } else {
 
@@ -289,14 +254,6 @@ export class PersonComponent implements OnInit, OnChanges {
       this.currentVideoSize.width = -1;
       this.currentVideoSize.height = -1;
       this.videoPlayerCtx = null;
-
-      // clear jitter buffer
-      if (this.wtAudioJitterBuffer) {
-        this.wtAudioJitterBuffer.Clear();
-      }
-      if (this.wtVideoJitterBuffer) {
-        this.wtVideoJitterBuffer.Clear();
-      }
 
       //clear video renderer
       if (this.videoRendererBuffer) {
@@ -422,73 +379,6 @@ export class PersonComponent implements OnInit, OnChanges {
     this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream, sharedBuffer }, [vFrameStream]);
     if (!this.onlyVideo) {
       this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream, sharedBuffer }, [aFrameStream]);
-    }
-  }
-
-  private encoderProcessWorkerMessage(e: MessageEvent<any>): void {
-
-    // LOGGING
-    if (e.data.type === "vframe") {
-        const vFrame = e.data.data;
-        let estimatedDuration = -1;
-        if (this.currentVideoTs == undefined) {
-          if (this.audioOffsetTS == undefined) {
-              // Start video at 0
-              this.videoOffsetTS = -vFrame.timestamp; // Comp video starts 0
-          } else {
-              // Adjust video offset to last audio seen (most probable case since audio startsup faster)
-              this.videoOffsetTS = -vFrame.timestamp + (this.currentAudioTs || 0) + (this.audioOffsetTS || 0); // Comp video starts last audio seen
-          }
-        } else {
-          estimatedDuration = vFrame.timestamp - this.currentVideoTs;
-        }
-        this.currentVideoTs = vFrame.timestamp;
-        this.videoTimeChecker.AddItem({ ts: this.currentVideoTs, compensatedTs: this.currentVideoTs! + this.videoOffsetTS!, estimatedDuration: estimatedDuration, clkms: e.data.clkms });
-        // Send the video frame obtained from v_capture.js to video encoder
-        this.vEncoderWorker.postMessage({ type: "vframe", vframe: vFrame }, [vFrame]);
-    } else if (e.data.type === "aframe") {
-        const aFrame = e.data.data;
-        let estimatedDuration = -1;
-        if (this.currentAudioTs == undefined) {
-            if (this.videoOffsetTS == undefined) {
-                // Start audio at 0
-                this.audioOffsetTS = -aFrame.timestamp; // Comp audio starts 0
-            } else {
-                // Adjust audio offset to last video seen
-                this.audioOffsetTS = -aFrame.timestamp + this.currentVideoTs! + this.videoOffsetTS; // Comp audio starts last video seen
-            }
-        } else {
-            estimatedDuration = aFrame.timestamp - this.currentAudioTs;
-        }
-        this.currentAudioTs = aFrame.timestamp;
-        this.audioTimeChecker.AddItem({ ts: this.currentAudioTs, compensatedTs: this.currentAudioTs! + this.audioOffsetTS!, estimatedDuration: estimatedDuration, clkms: e.data.clkms });
-        // Send the frame obtained from a_capture.js to audio encoder
-        this.aEncoderWorker.postMessage({ type: "aframe", aframe: aFrame });
-
-    // DROPPED frames by encoders
-    } else if (e.data.type === "vchunk") {
-        const chunk = e.data.chunk;
-        const metadata = e.data.metadata;
-        const seqId = e.data.seqId;
-        const itemTsClk = this.videoTimeChecker.GetItemByTs(chunk.timestamp);
-        if (!itemTsClk.valid) {
-            console.warn(`Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${seqId}`);
-        }
-        // Send the encoded video chunk obtained from v_encoder.js to moq_sender.js
-        this.muxerSenderWorker.postMessage({ type: "video", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, estimatedDuration: itemTsClk.estimatedDuration, seqId: seqId, chunk: chunk, metadata: metadata });
-
-    } else if (e.data.type === "achunk") {
-        const chunk = e.data.chunk;
-        const metadata = e.data.metadata;
-        const seqId = e.data.seqId;
-        const itemTsClk = this.audioTimeChecker.GetItemByTs(chunk.timestamp);
-        if (!itemTsClk.valid) {
-            // console.warn(`Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${seqId}`);
-        }
-        // Send the encoded audio chunk obtained from a_encoder.js to moq_sender.js
-        this.muxerSenderWorker.postMessage({ type: "audio", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, seqId: seqId, chunk: chunk, metadata: metadata });
-    } else {
-      console.error("unknown message: ", e.data);
     }
   }
 
