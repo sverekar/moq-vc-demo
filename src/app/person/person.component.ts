@@ -375,16 +375,6 @@ export class PersonComponent implements OnInit, OnChanges {
 
     this.muxerSenderWorker = new Worker("../../assets/js/sender/opt_moq_sender.js", { type: "module" });
 
-    // // Create send worker
-    // this.muxerSenderWorker = new Worker("../../assets/js/sender/moq_sender.js", { type: "module" });
-
-    // // Create a new workers for video / audio frames encode
-    // this.vEncoderWorker = new Worker("../../assets/js/encode/v_encoder.js", { type: "module" });
-    // this.aEncoderWorker = new Worker("../../assets/js/encode/a_encoder.js", { type: "module" });
-
-    // this.vStreamWorker = new Worker("../../assets/js/capture/v_capture.js", { type: "module" });
-    // this.aStreamWorker = new Worker("../../assets/js/capture/a_capture.js", { type: "module" });
-
     this.vStreamWorker = new Worker("../../assets/js/capture/opt_v_capture.js", { type: "module" });
     if (!this.onlyVideo) {
       this.aStreamWorker = new Worker("../../assets/js/capture/opt_a_capture.js", { type: "module" });
