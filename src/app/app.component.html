@@ -172,7 +172,10 @@
 
       <div class="form-row" style="margin-left: 10px; margin-bottom: 0px;">
         <label class="form-label">Peer Namespace:</label>
-        <input type="text" class="form-control smaller-input" placeholder="Enter peer's namespace" [(ngModel)]="peerNamespace">
+        <input type="search" class="form-control smaller-input" list="peerList" placeholder="Enter peer's namespace" [(ngModel)]="peerNamespace">
+        <datalist id="peerList">
+          <option *ngFor="let peerNS of peersList$ | async; " [value]="peerNS"></option>
+        </datalist>
       </div>
       <div class="form-row" style="margin-left: 10px; margin-right: 10px; margin-bottom: 0px;">
         <label class="form-label" style="align-self: end;">Peer Track Name: </label>

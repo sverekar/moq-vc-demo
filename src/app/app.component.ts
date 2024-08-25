@@ -2,7 +2,7 @@ import { CommonModule, Location } from '@angular/common';
 import { ChangeDetectorRef, Component, inject, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
-import { forkJoin, from } from 'rxjs';
+import { forkJoin, from, interval, Observable, switchMap } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { RelayService } from './relay.service';
 import { cosineDistanceBetweenPoints } from './common';
@@ -59,6 +59,8 @@ export class AppComponent implements OnInit {
 
   onlyVideo: boolean = true;
 
+  peersList$: Observable<Set<string>> | undefined;
+
   // private animFrame: number | undefined = undefined;
   // private RENDER_VIDEO_EVERY_MS = 10;
   // private wcLastRender: number = 0;
@@ -86,6 +88,8 @@ export class AppComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void>{
+
+    this.peersList$ = interval(2000).pipe( switchMap(() => this.relayService.getPeersList()));
 
     const self = this;
 
