@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CicularAudioSharedBuffer, JitterBuffer, TimeBufferChecker, VideoRenderBuffer } from '../common';
 import { AudioService } from '../audio.service';
 
@@ -268,7 +268,6 @@ export class PersonComponent implements OnInit, OnChanges {
       const stopMsg = { type: "stop" };
       if (this.muxerDownloaderWorker) {
         this.muxerDownloaderWorker.postMessage(stopMsg);
-        this.muxerDownloaderWorker.terminate();
       }
       if (this.videoDecoderWorker) {
         this.videoDecoderWorker.postMessage(stopMsg);
@@ -572,7 +571,7 @@ export class PersonComponent implements OnInit, OnChanges {
       const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
       if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
           // Initialize the audio worklet node when we know sampling freq used in the capture
-          this.playerInitializeAudioContext(aFrame.sampleRate);
+          await this.playerInitializeAudioContext(aFrame.sampleRate);
       }
       // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
       if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {

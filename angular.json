@@ -49,12 +49,16 @@
                   "maximumError": "5mb"
                 }
               ],
+              "optimization": true,
               "outputHashing": "all"
             },
+            "analyze-bundle": {
+              "sourceMap": true,
+              "namedChunks": true
+            },
             "development": {
-              "optimization": false,
-              "extractLicenses": false,
-              "sourceMap": true
+              "optimization": true,
+              "extractLicenses": false
             }
           },
           "defaultConfiguration": "production"

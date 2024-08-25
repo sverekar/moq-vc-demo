@@ -5,23 +5,25 @@
       <div class="col-10 p-3 mt-3" style="position: relative; padding-left: 5% !important;">
         <h1 class="title"> &nbsp; &nbsp; MOQ - Video Call Demonstration</h1>
       </div>
-      <div class="col-auto p-3 mt-3" style="position: relative;">
-          <button type="button" class="btn help" data-bs-toggle="modal" data-bs-target="#aboutModal">
-              ?
-          </button>
-      </div>
   </div>
 </header>
 <div class="container" style="margin-top: 30px; min-width: 98%;">
   <!-- Relay endpoint -->
   <div class="row" style="margin-left: 20%; margin-right: 20%;">
-      <div class="form-row">
-        <label class="form-label" style="font-size: medium;">MOQT Relay:</label>
-        <input type="search" [disabled]= "!isAnnounce" class="form-control smaller-input" list="datalistOptions" placeholder="Enter MOQT Relay Endpoint"  [(ngModel)]="wtServerUrl">
-        <datalist id="datalistOptions">
-          <option *ngFor="let relay of wtServerURLList; index as i" [value]="relay.url"> Zone - {{ relay.zone | uppercase }}</option>
-        </datalist>
-      </div>
+    <div class="form-row" >
+      <label class="form-label" style="font-size: medium;">MOQT Relay:</label>
+      <input type="search" [disabled]= "!isAnnounce" class="form-control smaller-input" list="datalistOptions" placeholder="Enter MOQT Relay Endpoint"  [(ngModel)]="wtServerUrl">
+      <datalist id="datalistOptions">
+        <option *ngFor="let relay of wtServerURLList; index as i" [value]="relay.url"> Zone - {{ relay.zone | uppercase }}</option>
+      </datalist>
+    </div>
+  </div>
+  <div style="float: right;" >
+    <label class="form-label" style="padding-right: 10px; padding-left: 10px;"> Only Video </label>
+    <label class="switch">
+      <input [disabled]= "!isAnnounce" type="checkbox" [(ngModel)]="onlyVideo">
+      <span class="slider round"></span>
+    </label>
   </div>
   <div style="display: grid; grid-template-columns: 1fr 2px 1fr;">
     <!-- Caller Information -->
@@ -205,7 +207,7 @@
         [auth]="authInfo"
         [namespace]="meNamespace"
         [self]="true"
-        [onlyVideo]="true"
+        [onlyVideo]="onlyVideo"
         [trackName]="trackName"
         [audioDeviceId]="audioSources?.deviceId"
         [videoDeviceId]="videoSources?.deviceId"
@@ -219,7 +221,7 @@
       [namespace]="info.namespace"
       [self]="false"
       [index]="i"
-      [onlyVideo]="true"
+      [onlyVideo]="onlyVideo"
       [trackName]="info.trackName"
       [playerBufferMs]="playerBufferMs"
       [playerMaxBufferMs]="playerMaxBufferMs"

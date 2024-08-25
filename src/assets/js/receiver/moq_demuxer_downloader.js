@@ -75,13 +75,16 @@ self.addEventListener('message', async function (e) {
       // sendMessageToMain(WORKER_PREFIX, 'info', 'Unsubscribed from all tracks, closing MOQT')
       await moqClose(moqt)
     } catch (err) {
-      if (MOQT_DEV_MODE) {throw err}
+      //if (MOQT_DEV_MODE) {throw err}
       // Expected to finish some promises with abort error
       // The abort "errors" are already sent to main "thead" by sendMessageToMain inside the promise
-      console.error(WORKER_PREFIX + ` Errors closing (some could be ok): ${err}`)
+      console.info(WORKER_PREFIX + ` Errors closing (some could be ok): ${err}`)
 
       // sendMessageToMain(WORKER_PREFIX, 'error', `Errors closing (some could be ok): ${err}`)
+    } finally {
+      self.close();
     }
+
   } else if (type === 'downloadersendini') {
 
     videoDecoderPort = e.ports[0];
@@ -168,7 +171,7 @@ async function moqReceiveObjects(moqt) {
     // NO await on purpose!
     moqReceiveStreamObjects(moqt).then(() => console.log('Stopped recieving streams'))
     // NO await on purpose!
-    moqReceiveDatagramObjects(moqt)
+    // moqReceiveDatagramObjects(moqt)
   } catch(err) {
     if (MOQT_DEV_MODE) {throw err}
     console.error(WORKER_PREFIX + ` Dropped stream because WT error: ${err}`)
@@ -291,7 +294,6 @@ async function readAndSendPayload(readerStream, mediaType, length) {
     } else {
       console.error(WORKER_PREFIX + ' Invalid media type');
     }
-
   } else {
     const packet = await readRAWPackager(readerStream, length)
     self.postMessage({ type: 'data', chunk: packet.GetData().data })

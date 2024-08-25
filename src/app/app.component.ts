@@ -1,8 +1,7 @@
 import { CommonModule, Location } from '@angular/common';
 import { ChangeDetectorRef, Component, inject, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterOutlet } from '@angular/router';
-import { NgbActiveModal, NgbModal, NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import { forkJoin, from } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { RelayService } from './relay.service';
@@ -12,10 +11,8 @@ import { cosineDistanceBetweenPoints } from './common';
   selector: 'app-root',
   standalone: true,
   imports: [
-    NgbModule,
     FormsModule,
     CommonModule,
-    RouterOutlet,
     PersonComponent
   ],
   templateUrl: './app.component.html',
@@ -60,6 +57,8 @@ export class AppComponent implements OnInit {
   readyToPublish: boolean = false;
   isAnnounce: boolean = true;
 
+  onlyVideo: boolean = true;
+
   private animFrame: number | undefined = undefined;
   private RENDER_VIDEO_EVERY_MS = 10;
   private wcLastRender: number = 0;
@@ -90,19 +89,19 @@ export class AppComponent implements OnInit {
 
     const self = this;
 
-    // forkJoin([
-    //   this.relayService.getCurrentPosition(),
-    //   this.relayService.getRelays()
-    // ]).subscribe((res: any) => {
-    //   if (res[1].length > 0) {
-    //     let relays = res[1];
-    //     relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
-    //     this.wtServerURLList = this.getRelays(relays, res[0])
-    //     // For testing
-    //     this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
-    //     this.wtServerUrl = this.wtServerURLList[0].url;
-    //   }
-    // });
+    forkJoin([
+      this.relayService.getCurrentPosition(),
+      this.relayService.getRelays()
+    ]).subscribe((res: any) => {
+      if (res[1].length > 0) {
+        let relays = res[1];
+        relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
+        this.wtServerURLList = this.getRelays(relays, res[0])
+        // For testing
+        // this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
+        this.wtServerUrl = this.wtServerURLList[0].url;
+      }
+    });
 
     this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
     this.wtServerUrl = this.wtServerURLList[0].url;
