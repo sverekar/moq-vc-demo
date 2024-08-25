@@ -8,7 +8,6 @@ export class AudioService {
   private audioCtxMap: Map<number, AudioContext> = new Map();
 
   async init(desiredSampleRate: number): Promise<AudioContext> {
-    console.log(desiredSampleRate);
     let audioCtx = this.audioCtxMap.get(desiredSampleRate);
     if (!audioCtx) {
       audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });

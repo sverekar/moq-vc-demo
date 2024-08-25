@@ -89,21 +89,21 @@ export class AppComponent implements OnInit {
 
     const self = this;
 
-    // forkJoin([
-    //   this.relayService.getCurrentPosition(),
-    //   this.relayService.getRelays()
-    // ]).subscribe((res: any) => {
-    //   if (res[1].length > 0) {
-    //     let relays = res[1];
-    //     relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
-    //     this.wtServerURLList = this.getRelays(relays, res[0])
-    //     this.wtServerUrl = this.wtServerURLList[0].url;
-    //   }
-    // });
+    forkJoin([
+      this.relayService.getCurrentPosition(),
+      this.relayService.getRelays()
+    ]).subscribe((res: any) => {
+      if (res[1].length > 0) {
+        let relays = res[1];
+        relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
+        this.wtServerURLList = this.getRelays(relays, res[0])
+        this.wtServerUrl = this.wtServerURLList[0].url;
+      }
+    });
 
-    // For testing relay.
-    this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
-    this.wtServerUrl = this.wtServerURLList[0].url;
+    // // For testing relay.
+    // this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
+    // this.wtServerUrl = this.wtServerURLList[0].url;
 
     // @ts-ignore
     navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
