@@ -25,8 +25,8 @@ export class AppComponent implements OnInit {
   wtServerUrl: string = '';
   meNamespace: string = 'Guest' //crypto.randomUUID();
   trackName: string = 'Main';
-  peerNamespace: string = 'Guest';
-  peerTrackName: string = 'Main';
+  peerNamespace: string = '';
+  peerTrackName: string = '';
   authInfo: string = 'secret'
   moqVideoQuicMapping: string = 'ObjPerStream';
   moqAudioQuicMapping: string = 'ObjPerStream';
@@ -168,8 +168,8 @@ export class AppComponent implements OnInit {
       trackName: this.trackName,
       self: false
     })
-    this.peerNamespace = 'Guest';
-    this.peerTrackName = 'Main';
+    this.peerNamespace = '';
+    this.peerTrackName = '';
   }
 
   async announceOrStop(): Promise<void> {
