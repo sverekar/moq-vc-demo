@@ -5,11 +5,17 @@ export class VideoRenderBuffer {
   elementsList: any;
   totalDiscarded: any;
   totalLengthMs: any;
+  onlyVideo: boolean;
 
-  constructor () {
+  constructor (onlyVideo?: boolean) {
     this.elementsList = []
     this.totalDiscarded = 0
-    this.totalLengthMs = 0
+    this.totalLengthMs = 0;
+    if (onlyVideo === undefined) {
+      this.onlyVideo = false;
+    } else {
+      this.onlyVideo = onlyVideo;
+    }
   }
 
   AddItem (vFrame: any) {
@@ -19,12 +25,15 @@ export class VideoRenderBuffer {
       this.elementsList.push(vFrame)
       this.totalLengthMs += vFrame.duration / 1000
     } else {
-      const v = this.elementsList.shift();
-      this.totalLengthMs -= v.duration / 1000;
-      (v as VideoFrame).close()
-      this.elementsList.push(vFrame)
-      this.totalLengthMs += vFrame.duration / 1000
-      // r = false
+      if (this.onlyVideo) {
+        const v = this.elementsList.shift();
+        this.totalLengthMs -= v.duration / 1000;
+        (v as VideoFrame).close()
+        this.elementsList.push(vFrame)
+        this.totalLengthMs += vFrame.duration / 1000;
+      } else {
+        r = false
+      }
     }
     return r
   }
@@ -117,7 +126,6 @@ export class CicularAudioSharedBuffer {
     this.sharedAudiobuffers = null
     this.sharedCommBuffer = new SharedArrayBuffer(Object.keys(SharedStates).length * Int32Array.BYTES_PER_ELEMENT)
     this.size = -1
-
     this.contextFrequency = -1
 
     // Get TypedArrayView from SAB.
@@ -209,6 +217,7 @@ export class CicularAudioSharedBuffer {
         }
         end = samplesToAddSecondsHalf
       }
+      aFrame.close();
     }
     Atomics.store(this.sharedStates, SharedStates.AUDIO_BUFF_END, end)
   }

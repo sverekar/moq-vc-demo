@@ -53,6 +53,9 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private AUDIO_STOPPED = 0;
 
+  private RENDER_VIDEO_EVERY_MS = 10;
+  private wcLastRender: number = 0;
+
   private videoEncoderConfig = {
     encoderConfig: {
         codec: 'avc1.42001e', // Baseline = 66, level 30 (see: https://en.wikipedia.org/wiki/Advanced_Video_Coding)
@@ -137,6 +140,10 @@ export class PersonComponent implements OnInit, OnChanges {
   private systemAudioLatencyMs: number = 0;
   private audioSharedBuffer:CicularAudioSharedBuffer | null = null;
   private videoPlayerCtx:CanvasRenderingContext2D | null = null;
+
+  private animFrame: number | null = null;
+
+  private isAudioContextSet = false;
 
   constructor(private ngZone: NgZone, private ref: ChangeDetectorRef, private audioService: AudioService ) {}
 
@@ -292,28 +299,6 @@ export class PersonComponent implements OnInit, OnChanges {
 
       const self = this;
 
-      // this.ngZone.runOutsideAngular(() => {
-      //   this.muxerSenderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-      //     if (e.data.type === 'started') {
-      //       this.initalizeWorkers(videoEncodingBitrateBps,videoEncodingKeyFrameEvery, audioEncodingBitrateBps, mediaStream);
-      //     } else {
-      //       this.encoderProcessWorkerMessage(e);
-      //     }
-      //   });
-      //   this.vStreamWorker.addEventListener('message', (e: MessageEvent<any>) => {
-      //     this.encoderProcessWorkerMessage(e);
-      //   });
-      //   this.aStreamWorker.addEventListener('message', (e: MessageEvent<any>) =>  {
-      //     this.encoderProcessWorkerMessage(e);
-      //   });
-      //   this.vEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-      //     this.encoderProcessWorkerMessage(e);
-      //   });
-      //   this.aEncoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
-      //     this.encoderProcessWorkerMessage(e);
-      //   });
-      // });
-
       const channel1 = new MessageChannel();
       const channel2 = new MessageChannel();
 
@@ -410,7 +395,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private loadPlayer() {
 
-    this.videoRendererBuffer = new VideoRenderBuffer();
+    this.videoRendererBuffer = new VideoRenderBuffer(this.onlyVideo);
 
     const channel1 = new MessageChannel();
     const channel2 = new MessageChannel();
@@ -422,6 +407,8 @@ export class PersonComponent implements OnInit, OnChanges {
     this.videoDecoderWorker = new Worker("../../assets/js/decode/video_decoder.js", {type: "module"});
 
     const self =  this;
+
+    this.animate = this.animate.bind(this);
 
     this.ngZone.runOutsideAngular(() => {
       self.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
@@ -459,7 +446,8 @@ export class PersonComponent implements OnInit, OnChanges {
       const aFrame = e.data.frame;
       // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
       const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
-      if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+      if (!this.isAudioContextSet && this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+          this.isAudioContextSet = true;
           // Initialize the audio worklet node when we know sampling freq used in the capture
           await this.playerInitializeAudioContext(aFrame.sampleRate);
       }
@@ -474,12 +462,18 @@ export class PersonComponent implements OnInit, OnChanges {
       if (this.audioSharedBuffer != null) {
           // uses compensated TS
           this.audioSharedBuffer.Add(aFrame, curWCompTs);
+          if (this.animFrame === null) {
+            this.animFrame = requestAnimationFrame(this.animate);
+          }
       }
     } else if (e.data.type === "vframe") {
       const vFrame = e.data.frame;
       if (this.videoRendererBuffer !== null && this.videoRendererBuffer.AddItem(vFrame) === false) {
-          console.warn("Dropped video frame because video renderer is full");
+          // console.warn("Dropped video frame because video renderer is full");
           vFrame.close();
+      }
+      if (this.onlyVideo && this.animFrame === null) {
+        this.animFrame = requestAnimationFrame(this.animate);
       }
     // Downloader STATS
     } else {
@@ -487,31 +481,13 @@ export class PersonComponent implements OnInit, OnChanges {
     }
   }
 
-  animate() {
-    let data;
-    if (this.onlyVideo) {
-      const retData = this.videoRendererBuffer?.GetFirstElement()!;
-      if (retData.vFrame != null) {
-          this.playerSetVideoSize(retData.vFrame);
-          if (!this.videoFramePrinted) {
-            this.videoFramePrinted = true;
-            this.ref.detectChanges();
-          }
-          this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
-          (retData.vFrame as VideoFrame).close();
-      }
-    } else {
-      if (this.audioSharedBuffer != null) {
-        data = this.audioSharedBuffer.GetStats()
-        if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
-          this.audioSharedBuffer.Play();
-        }
-      }
-      if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
-        // Assuming audioTS in microseconds
-        const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
-        const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
-        //console.log(retData)
+  animate(wcTimestamp: number) {
+    const wcInterval = wcTimestamp - this.wcLastRender;
+    if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
+      this.wcLastRender = wcTimestamp;
+
+      if (this.onlyVideo) {
+        const retData = this.videoRendererBuffer?.GetFirstElement()!;
         if (retData.vFrame != null) {
             this.playerSetVideoSize(retData.vFrame);
             if (!this.videoFramePrinted) {
@@ -521,8 +497,32 @@ export class PersonComponent implements OnInit, OnChanges {
             this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
             (retData.vFrame as VideoFrame).close();
         }
+      } else {
+        let data;
+        if (this.audioSharedBuffer != null) {
+          data = this.audioSharedBuffer.GetStats()
+          if (data.queueLengthMs >= this.playerBufferMs! && data.isPlaying === this.AUDIO_STOPPED) {
+            this.audioSharedBuffer.Play();
+          }
+        }
+        if (data !== undefined && this.videoRendererBuffer != null && data.currentTimestamp >= 0) {
+          // Assuming audioTS in microseconds
+          const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
+          const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
+          //console.log(retData)
+          if (retData.vFrame != null) {
+              this.playerSetVideoSize(retData.vFrame);
+              if (!this.videoFramePrinted) {
+                this.videoFramePrinted = true;
+                this.ref.detectChanges();
+              }
+              this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+              (retData.vFrame as VideoFrame).close();
+          }
+        }
       }
     }
+    this.animFrame = requestAnimationFrame(this.animate);
   }
 
   private playerSetVideoSize(vFrame: VideoFrame) {

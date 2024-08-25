@@ -59,9 +59,9 @@ export class AppComponent implements OnInit {
 
   onlyVideo: boolean = true;
 
-  private animFrame: number | undefined = undefined;
-  private RENDER_VIDEO_EVERY_MS = 10;
-  private wcLastRender: number = 0;
+  // private animFrame: number | undefined = undefined;
+  // private RENDER_VIDEO_EVERY_MS = 10;
+  // private wcLastRender: number = 0;
 
   private modalService = inject(NgbModal);
 
@@ -154,9 +154,9 @@ export class AppComponent implements OnInit {
   }
 
   subscribePeer(): void {
-    if (this.subscriptionList.length === 0) {
-      this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
-    }
+    // if (this.subscriptionList.length === 0) {
+    //   this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
+    // }
 
     this.subscriptionList.push({
       id: this.peerNamespace + '/' + this.trackName,
@@ -195,30 +195,30 @@ export class AppComponent implements OnInit {
 
   destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
-    if (this.subscriptionList.length === 0 ) {
-      if (this.animFrame) {
-        cancelAnimationFrame(this.animFrame)
-      }
-    }
+    // if (this.subscriptionList.length === 0 ) {
+    //   if (this.animFrame) {
+    //     cancelAnimationFrame(this.animFrame)
+    //   }
+    // }
   }
 
   getPersonId(index: number, item: any){
     return item.id;
   }
 
-  handleVideoAnimationPlay(wcTimestamp: number) {
-    const wcInterval = wcTimestamp - this.wcLastRender;
-    if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
-      this.wcLastRender = wcTimestamp;
-      for (let i= 0; i < this.subscribers.length; ++i) {
-        const c = this.subscribers.get(i);
-        if (c) {
-          c.animate();
-        }
-      }
-    }
-    this.animFrame = requestAnimationFrame(this.handleVideoAnimationPlay.bind(this));
-  }
+  // handleVideoAnimationPlay(wcTimestamp: number) {
+  //   const wcInterval = wcTimestamp - this.wcLastRender;
+  //   if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
+  //     this.wcLastRender = wcTimestamp;
+  //     for (let i= 0; i < this.subscribers.length; ++i) {
+  //       const c = this.subscribers.get(i);
+  //       if (c) {
+  //         c.animate();
+  //       }
+  //     }
+  //   }
+  //   this.animFrame = requestAnimationFrame(this.handleVideoAnimationPlay.bind(this));
+  // }
 
   private getRelays(relays: Array<{ url: string, coordinates:Array<number>, zone: string}>, location: {lat: number, lng: number} | undefined): Array<{ zone: string, url: string }> {
     const resp = [];
