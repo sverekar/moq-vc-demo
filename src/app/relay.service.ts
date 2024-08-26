@@ -25,7 +25,7 @@ export class RelayService {
         err => {
           console.warn(`Unable to find current location due to ${err.message}`)
           resolve(undefined);
-        });
+        }, { maximumAge: 3600000, timeout: 1000});
       } else {
         console.warn(`Navigator geolocation not supported / enabled !`)
         resolve(undefined);

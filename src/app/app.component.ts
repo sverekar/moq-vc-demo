@@ -94,8 +94,8 @@ export class AppComponent implements OnInit {
     const self = this;
 
     forkJoin([
-      this.relayService.getCurrentPosition(),
-      this.relayService.getRelays()
+      this.relayService.getRelays(),
+      this.relayService.getCurrentPosition()
     ]).subscribe((res: any) => {
       if (res[1].length > 0) {
         let relays = res[1];
