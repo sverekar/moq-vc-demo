@@ -19,6 +19,7 @@ export class RelayService {
     return new Promise((resolve, reject) => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(resp => {
+          console.log('Your location: lat=' + resp.coords.latitude, ' lng=' + resp.coords.longitude)
           resolve({lng: resp.coords.longitude, lat: resp.coords.latitude});
         },
         err => {
