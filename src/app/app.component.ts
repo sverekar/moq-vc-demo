@@ -97,7 +97,7 @@ export class AppComponent implements OnInit {
       this.relayService.getRelays(),
       this.relayService.getCurrentPosition()
     ]).subscribe((res: any) => {
-      if (res[1].length > 0) {
+      if (res[0].length > 0) {
         let relays = res[1];
         relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
         this.wtServerURLList = this.getRelays(relays, res[0])
