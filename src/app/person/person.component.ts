@@ -82,18 +82,10 @@ export class PersonComponent implements OnInit, OnChanges {
     encoderMaxQueueSize: 10,
   };
 
-  private muxerSenderConfig = {
+  private muxerSenderConfig: any = {
     urlHostPort: '',
     urlPath: '',
     moqTracks: {
-        "audio": {
-            namespace: "vc",
-            name: "-audio",
-            maxInFlightRequests: 100,
-            isHipri: true,
-            authInfo: "secret",
-            moqMapping: 'ObjPerStream',
-        },
         "video": {
             namespace: "vc",
             name: "-video",
@@ -105,16 +97,10 @@ export class PersonComponent implements OnInit, OnChanges {
     },
   }
 
-  private downloaderConfig = {
+  private downloaderConfig: any = {
     urlHostPort: '',
     urlPath: '',
     moqTracks: {
-        "audio": {
-            alias: 0,
-            namespace: "vc",
-            name: "-audio",
-            authInfo: "secret"
-        },
         "video": {
             alias: 1,
             namespace: "vc",
@@ -316,11 +302,14 @@ export class PersonComponent implements OnInit, OnChanges {
       this.muxerSenderConfig.moqTracks["video"].authInfo = this.auth!;
       this.muxerSenderConfig.moqTracks["video"].moqMapping = moqVideoQuicMapping;
 
-      this.muxerSenderConfig.moqTracks["audio"].namespace = this.namespace!;
-      this.muxerSenderConfig.moqTracks["audio"].name = this.trackName  + "-audio";
-      this.muxerSenderConfig.moqTracks["audio"].maxInFlightRequests = maxInflightAudioRequests;
-      this.muxerSenderConfig.moqTracks["audio"].authInfo = this.auth!;
-      this.muxerSenderConfig.moqTracks["audio"].moqMapping = moqAudioQuicMapping
+      if (!this.onlyVideo) {
+        this.muxerSenderConfig.moqTracks["audio"].namespace = this.namespace!;
+        this.muxerSenderConfig.moqTracks["audio"].name = this.trackName  + "-audio";
+        this.muxerSenderConfig.moqTracks["audio"].maxInFlightRequests = maxInflightAudioRequests;
+        this.muxerSenderConfig.moqTracks["audio"].authInfo = this.auth!;
+        this.muxerSenderConfig.moqTracks["audio"].moqMapping = moqAudioQuicMapping
+        this.muxerSenderConfig.moqTracks["audio"].isHipri = true;
+      }
 
       this.muxerSenderConfig.urlHostPort = this.url!;
 
@@ -422,9 +411,12 @@ export class PersonComponent implements OnInit, OnChanges {
     this.downloaderConfig.moqTracks["video"].name = this.trackName + "-video";
     this.downloaderConfig.moqTracks["video"].authInfo = this.auth;
 
-    this.downloaderConfig.moqTracks["audio"].namespace = this.namespace;
-    this.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
-    this.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
+    if (!this.onlyVideo) {
+      this.downloaderConfig.moqTracks["audio"].namespace = this.namespace;
+      this.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
+      this.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
+      this.downloaderConfig.moqTracks["audio"].alias = 0;
+    }
 
     this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig }, [channel1.port2, channel2.port2]);
 
