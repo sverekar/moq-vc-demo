@@ -470,7 +470,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
       if (this.onlyVideo) {
         const retData = this.videoRendererBuffer?.GetFirstElement()!;
-        if (retData.vFrame != null) {
+        if (retData && retData.vFrame) {
             this.playerSetVideoSize(retData.vFrame);
             if (!this.videoFramePrinted) {
               this.videoFramePrinted = true;
@@ -491,8 +491,7 @@ export class PersonComponent implements OnInit, OnChanges {
           // Assuming audioTS in microseconds
           const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
           const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
-          //console.log(retData)
-          if (retData.vFrame != null) {
+          if (retData && retData.vFrame) {
               this.playerSetVideoSize(retData.vFrame);
               if (!this.videoFramePrinted) {
                 this.videoFramePrinted = true;
