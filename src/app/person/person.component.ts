@@ -220,6 +220,20 @@ export class PersonComponent implements OnInit, OnChanges {
         this.vStreamWorker.postMessage(stopMsg);
         this.vStreamWorker.terminate();
       }
+      this.muxerSenderConfig = {
+        urlHostPort: '',
+        urlPath: '',
+        moqTracks: {
+            "video": {
+                namespace: "vc",
+                name: "-video",
+                maxInFlightRequests: 50,
+                isHipri: false,
+                authInfo: "secret",
+                moqMapping: 'ObjPerStream',
+            }
+        },
+      }
     } else {
 
       // stop workers
@@ -303,6 +317,7 @@ export class PersonComponent implements OnInit, OnChanges {
       this.muxerSenderConfig.moqTracks["video"].moqMapping = moqVideoQuicMapping;
 
       if (!this.onlyVideo) {
+        this.muxerSenderConfig.moqTracks["audio"] = {}
         this.muxerSenderConfig.moqTracks["audio"].namespace = this.namespace!;
         this.muxerSenderConfig.moqTracks["audio"].name = this.trackName  + "-audio";
         this.muxerSenderConfig.moqTracks["audio"].maxInFlightRequests = maxInflightAudioRequests;
@@ -312,6 +327,7 @@ export class PersonComponent implements OnInit, OnChanges {
       }
 
       this.muxerSenderConfig.urlHostPort = this.url!;
+      console.log(this.muxerSenderConfig);
 
       this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig }, [channel1.port2, channel2.port2]);
 
@@ -412,12 +428,14 @@ export class PersonComponent implements OnInit, OnChanges {
     this.downloaderConfig.moqTracks["video"].authInfo = this.auth;
 
     if (!this.onlyVideo) {
+      this.downloaderConfig.moqTracks["audio"] = {}
       this.downloaderConfig.moqTracks["audio"].namespace = this.namespace;
       this.downloaderConfig.moqTracks["audio"].name = this.trackName + "-audio";
       this.downloaderConfig.moqTracks["audio"].authInfo = this.auth;
       this.downloaderConfig.moqTracks["audio"].alias = 0;
     }
 
+    console.log(this.downloaderConfig);
     this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig }, [channel1.port2, channel2.port2]);
 
   }
