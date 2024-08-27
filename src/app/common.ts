@@ -25,15 +25,13 @@ export class VideoRenderBuffer {
       this.elementsList.push(vFrame)
       this.totalLengthMs += vFrame.duration / 1000
     } else {
-      if (this.onlyVideo) {
-        const v = this.elementsList.shift();
-        this.totalLengthMs -= v.duration / 1000;
-        (v as VideoFrame).close()
-        this.elementsList.push(vFrame)
-        this.totalLengthMs += vFrame.duration / 1000;
-      } else {
-        r = false
-      }
+
+      const v = this.elementsList.shift();
+      this.totalLengthMs -= v.duration / 1000;
+      (v as VideoFrame).close()
+      this.elementsList.push(vFrame)
+      this.totalLengthMs += vFrame.duration / 1000;
+
     }
     return r
   }
@@ -334,4 +332,75 @@ export function cosineDistanceBetweenPoints(lat1: number, lon1: number, lat2: nu
             Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
   const d = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * R;
   return d;
+}
+
+/*
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+This source code is licensed under the MIT license found in the
+LICENSE file in the root directory of this source tree.
+*/
+
+export class TimeBufferChecker {
+
+  mediaType: any
+  elementsList: any = []
+  isVerbose = false
+
+  constructor (mediaType: any, isVerbose?: any) {
+    this.mediaType = mediaType
+    this.elementsList = []
+    this.isVerbose = false
+    if (isVerbose === true) {
+      this.isVerbose = true
+    }
+  }
+
+  AddItem (item: any) {
+    if (('ts' in item) && ('clkms' in item)) {
+      // Add at the end
+      this.elementsList.push(item)
+      if (this.isVerbose) {
+        console.log(`TimeBufferChecker[${this.mediaType}] Added item: ${JSON.stringify(item)}, list: ${JSON.stringify(this.elementsList)}`)
+      }
+    }
+  }
+
+  GetItemByTs (ts: any, useExact?: any) {
+    let ret = { valid: false, ts: -1, compensatedTs: -1, estimatedDuration: -1, clkms: -1 }
+    let i = 0
+    let indexPastTs = -1
+    let removedElements = 0
+
+    // elementsList is sorted by arrival order
+    while (i < this.elementsList.length) {
+      if (useExact === true) {
+        if (this.elementsList[i].ts === ts) {
+          indexPastTs = i
+        }
+      } else {
+        if (ts >= this.elementsList[i].ts) {
+          indexPastTs = i
+        } else if (ts < this.elementsList[i].ts) {
+          break
+        }
+      }
+      i++
+    }
+    if (indexPastTs >= 0) {
+      ret = this.elementsList[indexPastTs]
+      ret.valid = true
+      removedElements = Math.min(indexPastTs + 1, this.elementsList.length)
+      this.elementsList = this.elementsList.slice(indexPastTs + 1)
+    }
+    if (this.isVerbose) {
+      console.log(`TimeBufferChecker[${this.mediaType}] removedElements: ${removedElements}, elements list: ${this.elementsList.length}, retTs: ${(ret === undefined) ? 'undefined' : JSON.stringify(ret)}, asked: ${ts}, list: ${JSON.stringify(this.elementsList)}`)
+    }
+
+    return ret
+  }
+
+  Clear () {
+    this.elementsList = []
+  }
 }

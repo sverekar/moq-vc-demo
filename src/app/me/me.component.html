@@ -1,0 +1,7 @@
+<div class="person">
+  <div  style="height: 30px;">
+    <span class="name"> {{ namespace + '/' + trackName }}</span>
+  </div>
+  <div class="spinner-border spinner" role="status" [hidden]="videoFramePrinted"> </div>
+  <video [hidden]="!videoFramePrinted" autoplay="" [muted]="true" #videoplayer></video>
+</div>

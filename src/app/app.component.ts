@@ -1,11 +1,12 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, inject, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { ChangeDetectorRef, Component, ComponentFactoryResolver, ComponentRef, inject, NgZone, OnInit, QueryList, ViewChild, ViewChildren, ViewContainerRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import { forkJoin, from, interval, Observable, switchMap } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { RelayService } from './relay.service';
 import { cosineDistanceBetweenPoints } from './common';
+import { MeComponent } from './me/me.component';
 
 @Component({
   selector: 'app-root',
@@ -13,7 +14,8 @@ import { cosineDistanceBetweenPoints } from './common';
   imports: [
     FormsModule,
     CommonModule,
-    PersonComponent
+    PersonComponent,
+    MeComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -68,11 +70,12 @@ export class AppComponent implements OnInit {
   private modalService = inject(NgbModal);
 
   // Announcer video view
-  @ViewChild('me', { static: true }) me!: PersonComponent;
+  @ViewChild('me', { static: false }) me!: MeComponent;
 
   @ViewChildren('subsriber') subscribers!: QueryList<PersonComponent>;
 
-  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService) {
+  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone,
+    private relayService: RelayService, private vcRef: ViewContainerRef, private resolver: ComponentFactoryResolver) {
 
     this.videoResolutions.push({width: 320, height: 180, fps: 30, level: 13})
     this.videoResolutions.push({width: 320, height: 180, fps: 15, level: 12})
@@ -84,7 +87,7 @@ export class AppComponent implements OnInit {
     this.videoResolutions.push({width: 1920, height: 1080, fps: 30, level: 40})
     this.videoEncodingOptions = this.videoResolutions[0];
     // @ts-ignore
-    navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
+    navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
   }
 
   async ngOnInit(): Promise<void>{
@@ -110,9 +113,7 @@ export class AppComponent implements OnInit {
     this.wtServerUrl = this.wtServerURLList[0].url;
 
     // @ts-ignore
-    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    // @ts-ignore
-    if (navigator.getUserMedia) {
+    if ( navigator.mediaDevices.getUserMedia) {
       from(navigator.mediaDevices
         .enumerateDevices())
         .subscribe({
@@ -147,7 +148,7 @@ export class AppComponent implements OnInit {
               this.modalService.open(NgbdModalConfirm)
             }
             // @ts-ignore
-            navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
+            navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
           }
         });
 
@@ -157,23 +158,7 @@ export class AppComponent implements OnInit {
     }
   }
 
-  subscribePeer(): void {
-    // if (this.subscriptionList.length === 0) {
-    //   this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
-    // }
-
-    this.subscriptionList.push({
-      id: this.peerNamespace + '/' + this.trackName,
-      namespace: this.peerNamespace,
-      trackName: this.trackName,
-      self: false
-    })
-    this.peerNamespace = '';
-    this.peerTrackName = 'Main';
-  }
-
   async announceOrStop(): Promise<void> {
-
     // trigger person (me) component to announce the frames to relay
     if (this.isAnnounce) {
         this.isAnnounce = false;
@@ -191,6 +176,22 @@ export class AppComponent implements OnInit {
         this.isAnnounce = true;
       })
     }
+  }
+
+  subscribePeer(): void {
+
+    // if (this.subscriptionList.length === 0) {
+    //   this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
+    // }
+
+    this.subscriptionList.push({
+      id: this.peerNamespace + '/' + this.trackName,
+      namespace: this.peerNamespace,
+      trackName: this.trackName,
+      self: false
+    })
+    this.peerNamespace = '';
+    this.peerTrackName = 'Main';
   }
 
   async destroySubscriber(id: string) {
@@ -244,6 +245,27 @@ export class AppComponent implements OnInit {
       })
     }
     return resp;
+  }
+
+  loadPersonComponent(iframe: any, info: { id:string, namespace: string, trackName: string, self: boolean}) {
+    const doc = iframe.contentDocument || iframe.contentWindow;
+    doc.body.style.margin = '0';
+    const compFactory = this.resolver.resolveComponentFactory(PersonComponent)
+    const personComponentRef = this.vcRef.createComponent(compFactory);
+    personComponentRef.location.nativeElement.id = info.id as string
+    (<PersonComponent>personComponentRef.instance).url = this.wtServerUrl;
+    (<PersonComponent>personComponentRef.instance).auth = this.authInfo;
+    (<PersonComponent>personComponentRef.instance).namespace = info.namespace;
+    (<PersonComponent>personComponentRef.instance).onlyVideo = this.onlyVideo;
+    (<PersonComponent>personComponentRef.instance).trackName = info.trackName;
+    (<PersonComponent>personComponentRef.instance).playerBufferMs = this.playerBufferMs;
+    (<PersonComponent>personComponentRef.instance).playerMaxBufferMs = this.playerMaxBufferMs;
+    (<PersonComponent>personComponentRef.instance).audioJitterBufferMs = this.audioJitterBufferMs;
+    (<PersonComponent>personComponentRef.instance).videoJitterBufferMs = this.videoJitterBufferMs;
+    (<PersonComponent>personComponentRef.instance).destroy.subscribe(response => {
+      this.destroySubscriber(response)
+    });
+    doc.body.appendChild(personComponentRef.location.nativeElement);
   }
 }
 

@@ -204,21 +204,24 @@
 
   <div class="vc-containers">
     <!-- Me -->
-    <app-person style="margin-bottom: 5px; min-height: calc(100vw/6);"
+    <app-me style="min-height: calc(100vw/6);"
         (publish)="readyToPublish = true;"
         [url]="wtServerUrl"
         [auth]="authInfo"
         [namespace]="meNamespace"
-        [self]="true"
         [onlyVideo]="onlyVideo"
         [trackName]="trackName"
         [audioDeviceId]="audioSources?.deviceId"
         [videoDeviceId]="videoSources?.deviceId"
         [resolution]="videoEncodingOptions" #me>
-    </app-person>
+    </app-me>
 
     <!-- Multiple subscribers -->
-    <app-person style="margin-bottom: 5px; min-height: calc(100vw/6);" *ngFor="let info of subscriptionList; index as i, trackBy: getPersonId"
+     <iframe style="min-height: calc(100vw/6); border-style: none; width: 100%;" frameborder="0" cellspacing="0" scrolling="no" *ngFor="let info of subscriptionList; index as i, trackBy: getPersonId"
+     (load)='loadPersonComponent($event.target, info)'
+     [attr.id]='info.id'>
+    </iframe>
+    <!-- <app-person style="margin-bottom: 5px; min-height: calc(100vw/6);" *ngFor="let info of subscriptionList; index as i, trackBy: getPersonId"
       [url]="wtServerUrl"
       [auth]="authInfo"
       [namespace]="info.namespace"
@@ -232,6 +235,6 @@
       [videoJitterBufferMs]="videoJitterBufferMs"
       (destroy)="destroySubscriber($event)"
       #subsriber>
-    </app-person>
+    </app-person> -->
   </div>
 </div>

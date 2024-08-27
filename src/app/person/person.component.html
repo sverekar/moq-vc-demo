@@ -1,12 +1,5 @@
-<div class="person" *ngIf="self">
-  <div  style="height: 30px;">
-    <span class="name"> {{ namespace + '/' + trackName }}</span>
-  </div>
-  <div class="spinner-border spinner" role="status" [hidden]="videoFramePrinted"> </div>
-  <video [hidden]="!videoFramePrinted" autoplay="" [muted]="self" #videoplayer></video>
-</div>
-<div class="person" *ngIf="!self">
-  <div>
+<div class="person">
+  <div style="height: 30px;">
     <span class="name"> {{ namespace + '/' + trackName }}</span>
     <button type="button" class="btn btn-secondary btn-sm" (click)="stop()">
       <svg width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
@@ -26,7 +19,6 @@
         </svg>
      </button>
   </div>
-
-  <div class="spinner-border spinner" role="status" [hidden]="videoFramePrinted"> </div>
-  <canvas [hidden]="!videoFramePrinted" #videoplayer></canvas>
+  <!-- <div class="spinner" *ngIf="!videoFramePrinted"> </div> -->
+  <canvas #videoplayer></canvas>
 </div>
