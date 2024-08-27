@@ -220,6 +220,7 @@ export class PersonComponent implements OnInit, OnChanges {
         this.vStreamWorker.postMessage(stopMsg);
         this.vStreamWorker.terminate();
       }
+      // Reset muxer config and me component is not destroyed. user can reconfigure onlyVideo.
       this.muxerSenderConfig = {
         urlHostPort: '',
         urlPath: '',
@@ -235,7 +236,6 @@ export class PersonComponent implements OnInit, OnChanges {
         },
       }
     } else {
-
       // stop workers
       const stopMsg = { type: "stop" };
       if (this.muxerDownloaderWorker) {
@@ -243,13 +243,10 @@ export class PersonComponent implements OnInit, OnChanges {
       }
       if (this.videoDecoderWorker) {
         this.videoDecoderWorker.postMessage(stopMsg);
-        this.videoDecoderWorker.terminate();
       }
       if (this.audioDecoderWorker) {
         this.audioDecoderWorker.postMessage(stopMsg);
-        this.audioDecoderWorker.terminate();
       }
-      this.audioCtx = null;
       this.gain = null;
       this.mute = true;
       this.sourceBufferAudioWorklet = null;
@@ -257,7 +254,6 @@ export class PersonComponent implements OnInit, OnChanges {
         this.audioSharedBuffer.Clear();
         this.audioSharedBuffer = null;
       }
-
       this.currentVideoSize.width = -1;
       this.currentVideoSize.height = -1;
       this.videoPlayerCtx = null;
@@ -327,7 +323,6 @@ export class PersonComponent implements OnInit, OnChanges {
       }
 
       this.muxerSenderConfig.urlHostPort = this.url!;
-      console.log(this.muxerSenderConfig);
 
       this.muxerSenderWorker.postMessage({ type: "muxersendini", muxerSenderConfig: this.muxerSenderConfig }, [channel1.port2, channel2.port2]);
 
@@ -364,7 +359,7 @@ export class PersonComponent implements OnInit, OnChanges {
     const aProcessor = new MediaStreamTrackProcessor(aTrack);
     const aFrameStream = aProcessor.readable;
 
-    const sharedBuffer = new SharedArrayBuffer( 2 * BigInt64Array.BYTES_PER_ELEMENT);
+    const sharedBuffer = new SharedArrayBuffer( 4 * BigInt64Array.BYTES_PER_ELEMENT);
 
     this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream, sharedBuffer }, [vFrameStream]);
     if (!this.onlyVideo) {
@@ -423,6 +418,7 @@ export class PersonComponent implements OnInit, OnChanges {
     }
 
     this.downloaderConfig.urlHostPort = this.url;
+
     this.downloaderConfig.moqTracks["video"].namespace = this.namespace;
     this.downloaderConfig.moqTracks["video"].name = this.trackName + "-video";
     this.downloaderConfig.moqTracks["video"].authInfo = this.auth;
@@ -435,7 +431,6 @@ export class PersonComponent implements OnInit, OnChanges {
       this.downloaderConfig.moqTracks["audio"].alias = 0;
     }
 
-    console.log(this.downloaderConfig);
     this.muxerDownloaderWorker.postMessage({ type: "downloadersendini", downloaderConfig: this.downloaderConfig }, [channel1.port2, channel2.port2]);
 
   }
@@ -509,7 +504,7 @@ export class PersonComponent implements OnInit, OnChanges {
           // Assuming audioTS in microseconds
           const compensatedAudioTS = Math.max(0, data.currentTimestamp - (this.systemAudioLatencyMs * 1000));
           const retData = this.videoRendererBuffer.GetItemByTs(compensatedAudioTS);
-          if (retData && retData.vFrame) {
+          if (retData.vFrame != null) {
               this.playerSetVideoSize(retData.vFrame);
               if (!this.videoFramePrinted) {
                 this.videoFramePrinted = true;

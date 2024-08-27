@@ -141,8 +141,9 @@ self.addEventListener('message', async function (e) {
       // The abort "errors" are already sent to main "thead" by sendMessageToMain inside the promise
       console.info(WORKER_PREFIX + ` Aborting / closing streams while exiting. Err: ${err.message}`)
       // sendMessageToMain(WORKER_PREFIX, 'info', `Aborting / closing streams while exiting. Err: ${err.message}`)
+    } finally {
+      self.close();
     }
-    self.close();
     return
   }
 
@@ -230,7 +231,7 @@ self.addEventListener('message', async function (e) {
             console.error(WORKER_PREFIX + ` Error in the subscription loop in control stream. Err: ${JSON.stringify(err)}`);
             // sendMessageToMain(WORKER_PREFIX, 'error', `Error in the subscription loop in control stream. Err: ${JSON.stringify(err)}`)
           } else {
-            console.error(WORKER_PREFIX + `Exited receiving subscription loop in control stream. Err: ${JSON.stringify(err)}`);
+            console.info(WORKER_PREFIX + `Exited receiving subscription loop in control stream. Err: ${JSON.stringify(err)}`);
             // sendMessageToMain(WORKER_PREFIX, 'info', `Exited receiving subscription loop in control stream. Err: ${JSON.stringify(err)}`)
           }
         })

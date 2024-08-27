@@ -6,6 +6,7 @@ import { forkJoin, from, interval, Observable, switchMap } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { RelayService } from './relay.service';
 import { cosineDistanceBetweenPoints } from './common';
+import { AudioService } from './audio.service';
 
 @Component({
   selector: 'app-root',
@@ -72,7 +73,7 @@ export class AppComponent implements OnInit {
 
   @ViewChildren('subsriber') subscribers!: QueryList<PersonComponent>;
 
-  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService) {
+  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService, private audioService: AudioService) {
 
     this.videoResolutions.push({width: 320, height: 180, fps: 30, level: 13})
     this.videoResolutions.push({width: 320, height: 180, fps: 15, level: 12})
@@ -184,21 +185,20 @@ export class AppComponent implements OnInit {
           this.isAnnounce = true;
         }
     } else {
-
       // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
       // Run outside of angular scope to avoid performance issue.
       this.ngZone.runOutsideAngular(() => {
         this.me.stop();
-        setTimeout(() => {
-          this.isAnnounce = true;
-          this.ref.detectChanges();
-        }, 1000);
+        this.isAnnounce = true;
       })
     }
   }
 
-  destroySubscriber(id: string) {
+  async destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
+    if (this.subscriptionList.length === 0) {
+      await this.audioService.close()
+    }
     // if (this.subscriptionList.length === 0 ) {
     //   if (this.animFrame) {
     //     cancelAnimationFrame(this.animFrame)

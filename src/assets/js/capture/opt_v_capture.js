@@ -23,7 +23,7 @@ let currentAudioTs = undefined;
 let videoOffsetTS = undefined;
 let audioOffsetTS = undefined;
 let estimatedDuration = -1;
-
+let arr = null;
 
 let frameDeliveredCounter = 0
 let chunkDeliveredCounter = 0
@@ -52,7 +52,9 @@ let port = null;
 function handleChunk (chunk, metadata) {
 
   const msg = { type: 'vchunk', seqId: chunkDeliveredCounter++, chunk, metadata: serializeMetadata(metadata) }
+  // console.log('Encoded Video Chunk: ', chunk.timestamp)
   const itemTsClk = videoTimeChecker.GetItemByTs(chunk.timestamp);
+  // console.log('Encoded Video Chunk Retrived: ', itemTsClk.compensatedTs)
   if (!itemTsClk.valid) {
     // console.error(WORKER_PREFIX + ` Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${msg.seqId}`);
   }
@@ -93,24 +95,27 @@ function mainLoop (frameReader) {
           isMainLoopInExecution = false
           return resolve(false)
         } else {
-          const vFrame = new VideoFrame(result.value)
-          result.value.close();
+          const vFrame = result.value
           if (!onlyVideo) {
+            Atomics.store(arr, 2, BigInt(vFrame.timestamp));
             if (currentVideoTs === undefined) {
-              const arr = new BigInt64Array(sharedBuffer);
               audioOffsetTS = Number(Atomics.load(arr, 1));
+              // console.log('audioOffsetTS in video: ', audioOffsetTS)
               if (audioOffsetTS === 0 ){
-                // Skip this frame as we wait for the audio frame first. i.e audio frame always start from 0
-                vFrame.close();
-                isMainLoopInExecution = false
-                return;
+                // console.log('Video first: ', vFrame.timestamp)
+                videoOffsetTS = -vFrame.timestamp;
+                Atomics.store(arr, 3, BigInt(videoOffsetTS));
+              } else {
+                // console.log('Video second: ', vFrame.timestamp)
+                currentAudioTs = Number(Atomics.load(arr, 0));
+                // console.log('currentAudioTs in video: ', currentAudioTs)
+                videoOffsetTS = -vFrame.timestamp + currentAudioTs + audioOffsetTS;
               }
-              currentAudioTs = Number(Atomics.load(arr, 0));
-              videoOffsetTS = -vFrame.timestamp + currentAudioTs + audioOffsetTS;
             } else {
               estimatedDuration = vFrame.timestamp - currentVideoTs;
             }
           } else {
+            // only video frames, no audio frames selected by user.
             if (currentVideoTs === undefined) {
               videoOffsetTS = -vFrame.timestamp
             } else {
@@ -118,6 +123,7 @@ function mainLoop (frameReader) {
             }
           }
           currentVideoTs = vFrame.timestamp;
+          // console.log('Adding video Frame: ', {  ts: currentVideoTs, compensatedTs: currentVideoTs + videoOffsetTS, estimatedDuration: estimatedDuration })
           videoTimeChecker.AddItem({ ts: currentVideoTs, compensatedTs: currentVideoTs + videoOffsetTS, estimatedDuration: estimatedDuration, clkms: Date.now()});
           // encode the frame
           if (vEncoder.encodeQueueSize > encoderMaxQueueSize) {
@@ -201,6 +207,7 @@ self.addEventListener('message', async function (e) {
     }
     const vFrameStream = e.data.vStream
     sharedBuffer = e.data.sharedBuffer;
+    arr = new BigInt64Array(sharedBuffer);
     const vFrameReader = vFrameStream.getReader()
     mainLoopInterval = setInterval(mainLoop, 1, vFrameReader)
     return

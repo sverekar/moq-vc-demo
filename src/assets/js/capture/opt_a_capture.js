@@ -17,6 +17,8 @@ let isMainLoopInExecution = false
 let sharedBuffer = null;
 let currentAudioTs = undefined;
 let audioOffsetTS = undefined;
+let videoOffsetTS = undefined;
+let currentVideoTs = undefined
 let estimatedDuration = -1;
 let arr = null;
 
@@ -43,6 +45,7 @@ let port = null;
 
 function handleChunk (chunk, metadata) {
 
+
   // Save last metadata and insert it if it is new
   let insertMetadata
   if (isMetadataValid(metadata)) {
@@ -55,7 +58,9 @@ function handleChunk (chunk, metadata) {
     }
   }
   const msg = { type: 'achunk', seqId: chunkDeliveredCounter++, chunk, metadata: serializeMetadata(insertMetadata) }
+  // console.log('Encoded Audio Chunk: ', chunk.timestamp)
   const itemTsClk = audioTimeChecker.GetItemByTs(chunk.timestamp);
+  // console.log('Encoded Audio Chunk Retrived: ', itemTsClk.compensatedTs)
   if (!itemTsClk.valid) {
     // console.warn(WORKER_PREFIX + ` Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${msg.seqId}`);
   }
@@ -95,14 +100,26 @@ function mainLoop (frameReader) {
           return resolve(false)
         } else {
           const aFrame = result.value
+          // console.log('Audio Frame: ', aFrame.timestamp)
+          Atomics.store(arr, 0, BigInt(aFrame.timestamp));
           if (currentAudioTs === undefined) {
-            audioOffsetTS = -aFrame.timestamp; // Comp audio starts 0
-            Atomics.store(arr, 1, BigInt(audioOffsetTS));
+            videoOffsetTS = Number(Atomics.load(arr, 3));
+            // console.log('videoOffsetTS in audio: ', videoOffsetTS)
+            if (videoOffsetTS === 0 ){
+              // console.log('Audio first: ', aFrame.timestamp)
+              audioOffsetTS = -aFrame.timestamp;
+              Atomics.store(arr, 1, BigInt(audioOffsetTS));
+            } else {
+              // console.log('Audio second: ', aFrame.timestamp)
+              currentVideoTs = Number(Atomics.load(arr, 2));
+              // console.log('currentVideoTs in Audio: ', currentVideoTs)
+              audioOffsetTS = -aFrame.timestamp + currentVideoTs + videoOffsetTS;
+            }
           } else {
             estimatedDuration = aFrame.timestamp - currentAudioTs;
           }
-          Atomics.store(arr, 0, BigInt(aFrame.timestamp));
           currentAudioTs = aFrame.timestamp;
+          // console.log('Adding audio Frame: ', {  ts: currentAudioTs, compensatedTs: currentAudioTs + audioOffsetTS, estimatedDuration: estimatedDuration })
           audioTimeChecker.AddItem({ ts: currentAudioTs, compensatedTs: currentAudioTs + audioOffsetTS, estimatedDuration: estimatedDuration, clkms: Date.now()});
           if (aEncoder.encodeQueueSize > encoderMaxQueueSize) {
             // Too many frames in the encoder, encoder is overwhelmed let's drop this frame.

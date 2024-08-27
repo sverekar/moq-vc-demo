@@ -5,7 +5,7 @@ This source code is licensed under the MIT license found in the
 LICENSE file in the root directory of this source tree.
 */
 
-import { sendMessageToMain, StateEnum, deSerializeMetadata} from '../utils/utils.js'
+import { StateEnum, deSerializeMetadata} from '../utils/utils.js'
 import { TsQueue } from '../utils/ts_queue.js'
 import { JitterBuffer } from '../utils/jitter_buffer.js'
 
@@ -134,16 +134,21 @@ self.addEventListener('message', async function (e) {
   } else if (type === 'stop') {
 
     workerState = StateEnum.Stopped
-
-    if (audioDecoder != null) {
-      await audioDecoder.flush()
-      audioDecoder.close()
+    try {
+      if (audioDecoder != null) {
+        await audioDecoder.flush()
+        audioDecoder.close()
+      }
+    } catch(error) {
+      console.error(WORKER_PREFIX + ` Failed to flush and close due to ${err.message}`)
+    } finally {
       audioDecoder = null
       ptsQueue.clear()
+      timestampOffset = 0
+      lastChunkSentTimestamp = -1
+      workerState = StateEnum.Created
+      self.close()
     }
-    workerState = StateEnum.Created
-    timestampOffset = 0
-    lastChunkSentTimestamp = -1
   } else {
     console.error(WORKER_PREFIX + ' Invalid message received')
     // sendMessageToMain(WORKER_PREFIX, 'error', 'Invalid message received')

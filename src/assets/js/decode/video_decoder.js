@@ -165,12 +165,17 @@ self.addEventListener('message', async function (e) {
 
   } else if (type === 'stop') {
     workerState = StateEnum.Stopped
-    if (videoDecoder != null) {
-      await videoDecoder.flush()
-      videoDecoder.close()
+    try {
+      if (videoDecoder != null) {
+        await videoDecoder.flush()
+        videoDecoder.close()
+      }
+    } catch (err) {
+      console.error(WORKER_PREFIX + ` Failed to flush and close due to ${err.message}`)
+    } finally {
       videoDecoder = null
-
       ptsQueue.clear()
+      self.close()
     }
     workerState = StateEnum.Created
   } else {

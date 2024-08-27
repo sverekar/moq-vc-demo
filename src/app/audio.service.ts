@@ -21,4 +21,9 @@ export class AudioService {
     return this.audioCtxMap.get(desiredSampleRate);
   }
 
+  async close() {
+    for (const x of this.audioCtxMap.values()) {
+      await x.close()
+    }
+  }
 }
