@@ -136,15 +136,13 @@ export class PersonComponent implements OnInit, OnChanges {
 
   async ngOnInit() {
 
-    await this.playerInitializeAudioContext(48000)
-
     if (!window.crossOriginIsolated) {
       console.error("we can NOT use SharedArrayBuffer");
     }
 
     // If subscriber, we have all the information required.
     if (!this.self) {
-      this.loadPlayer();
+      await this.loadPlayer();
     }
   }
 
@@ -394,7 +392,9 @@ export class PersonComponent implements OnInit, OnChanges {
 
   // SUBCRIBER Functions
 
-  private loadPlayer() {
+  private async loadPlayer() {
+
+    await this.playerInitializeAudioContext(48000)
 
     this.videoRendererBuffer = new VideoRenderBuffer(this.onlyVideo);
 
