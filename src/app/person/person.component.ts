@@ -458,7 +458,7 @@ export class PersonComponent implements OnInit, OnChanges {
       //     await this.playerInitializeAudioContext(aFrame.sampleRate);
       // }
       // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
-      if (this.isAudioContextSet  && this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
+      if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
           const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
           this.audioSharedBuffer = new CicularAudioSharedBuffer();
           this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
