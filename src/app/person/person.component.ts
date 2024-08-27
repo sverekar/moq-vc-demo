@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CicularAudioSharedBuffer, VideoRenderBuffer } from '../common';
-import { AudioService } from '../audio.service';
 
 declare const MediaStreamTrackProcessor: any;
 
@@ -131,9 +130,13 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private isAudioContextSet = false;
 
-  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef, private audioService: AudioService ) {}
+  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef) {
 
-  ngOnInit(): void {
+  }
+
+  async ngOnInit() {
+
+    await this.playerInitializeAudioContext(48000)
 
     if (!window.crossOriginIsolated) {
       console.error("we can NOT use SharedArrayBuffer");
@@ -250,10 +253,10 @@ export class PersonComponent implements OnInit, OnChanges {
         this.audioDecoderWorker.postMessage(stopMsg);
         this.audioDecoderWorker.terminate();
       }
-      // if (this.audioCtx) {
-      //   await this.audioCtx.close();
-      // }
-      // this.audioCtx = null;
+      if (this.audioCtx) {
+        await this.audioCtx.close();
+      }
+      this.audioCtx = null;
       this.gain = null;
       this.mute = true;
       this.sourceBufferAudioWorklet = null;
@@ -449,13 +452,13 @@ export class PersonComponent implements OnInit, OnChanges {
       const aFrame = e.data.frame;
       // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
       const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
-      if (!this.isAudioContextSet && this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
-          this.isAudioContextSet = true;
-          // Initialize the audio worklet node when we know sampling freq used in the capture
-          await this.playerInitializeAudioContext(aFrame.sampleRate);
-      }
+      // if (!this.isAudioContextSet && this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+      //     this.isAudioContextSet = true;
+      //     // Initialize the audio worklet node when we know sampling freq used in the capture
+      //     await this.playerInitializeAudioContext(aFrame.sampleRate);
+      // }
       // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
-      if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
+      if (this.isAudioContextSet  && this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
           const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
           this.audioSharedBuffer = new CicularAudioSharedBuffer();
           this.audioSharedBuffer.Init(aFrame.numberOfChannels, bufferSizeSamples, this.audioCtx.sampleRate);
@@ -547,16 +550,12 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private async playerInitializeAudioContext(desiredSampleRate: number) {
-    //this.audioCtx = await this.audioService.init(desiredSampleRate);
-    this.audioCtx = this.audioService.getAudioContext()
-    // await this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
+    this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: 48000 });
+    await this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
     if (this.audioCtx !== undefined) {
       this.gain = this.audioCtx.createGain();
       (this.gain as GainNode).connect(this.audioCtx.destination);
       this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
-      this.sourceBufferAudioWorklet.onprocessorerror = (event) => {
-        console.error('Audio worklet error. Err: ' + JSON.stringify(event));
-      };
       this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
       this.gain!.gain.value = 0;
       this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000

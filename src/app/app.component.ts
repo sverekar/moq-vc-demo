@@ -6,7 +6,6 @@ import { forkJoin, from, interval, Observable, switchMap } from 'rxjs';
 import { PersonComponent } from './person/person.component';
 import { RelayService } from './relay.service';
 import { cosineDistanceBetweenPoints } from './common';
-import { AudioService } from './audio.service';
 
 @Component({
   selector: 'app-root',
@@ -73,7 +72,7 @@ export class AppComponent implements OnInit {
 
   @ViewChildren('subsriber') subscribers!: QueryList<PersonComponent>;
 
-  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService, private audioService: AudioService) {
+  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService) {
 
     this.videoResolutions.push({width: 320, height: 180, fps: 30, level: 13})
     this.videoResolutions.push({width: 320, height: 180, fps: 15, level: 12})
@@ -89,8 +88,6 @@ export class AppComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void>{
-
-    await this.audioService.init(48000)
 
     this.peersList$ = interval(2000).pipe( switchMap(() => this.relayService.getPeersList()));
 
