@@ -128,21 +128,18 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private animFrame: number | null = null;
 
-  private isAudioContextSet = false;
-
   constructor(private ngZone: NgZone, private ref: ChangeDetectorRef) {
 
   }
 
-  async ngOnInit() {
+  ngOnInit() {
 
     if (!window.crossOriginIsolated) {
       console.error("we can NOT use SharedArrayBuffer");
     }
-
     // If subscriber, we have all the information required.
     if (!this.self) {
-      await this.loadPlayer();
+      this.loadPlayer();
     }
   }
 
@@ -394,8 +391,6 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private async loadPlayer() {
 
-    await this.playerInitializeAudioContext(48000)
-
     this.videoRendererBuffer = new VideoRenderBuffer(this.onlyVideo);
 
     const channel1 = new MessageChannel();
@@ -452,11 +447,10 @@ export class PersonComponent implements OnInit, OnChanges {
       const aFrame = e.data.frame;
       // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
       const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
-      // if (!this.isAudioContextSet && this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
-      //     this.isAudioContextSet = true;
-      //     // Initialize the audio worklet node when we know sampling freq used in the capture
-      //     await this.playerInitializeAudioContext(aFrame.sampleRate);
-      // }
+      if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+          // Initialize the audio worklet node when we know sampling freq used in the capture
+          await this.playerInitializeAudioContext(aFrame.sampleRate);
+      }
       // If audioSharedBuffer not initialized and is in start (render) state -> Initialize
       if (this.sourceBufferAudioWorklet != null && this.audioSharedBuffer === null) {
           const bufferSizeSamples = Math.floor((Math.max(this.playerMaxBufferMs!, this.playerBufferMs! * 2, 100) * aFrame.sampleRate) / 1000);
@@ -550,7 +544,7 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private async playerInitializeAudioContext(desiredSampleRate: number) {
-    this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: 48000 });
+    this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
     await this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
     if (this.audioCtx !== undefined) {
       this.gain = this.audioCtx.createGain();
