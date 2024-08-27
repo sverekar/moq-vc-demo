@@ -545,10 +545,8 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private async playerInitializeAudioContext(desiredSampleRate: number) {
-    console.log('playerInitializeAudioContext')
     return new Promise((resolve, reject) => {
       if (this.audioCtx === null) {
-        console.log('creating ctx');
         this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
         this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js').then((data: any) => {
           this.gain = this.audioCtx.createGain();
