@@ -236,6 +236,7 @@ export class PersonComponent implements OnInit, OnChanges {
         },
       }
     } else {
+
       // stop workers
       const stopMsg = { type: "stop" };
       if (this.muxerDownloaderWorker) {
@@ -249,6 +250,10 @@ export class PersonComponent implements OnInit, OnChanges {
         this.audioDecoderWorker.postMessage(stopMsg);
         this.audioDecoderWorker.terminate();
       }
+      // if (this.audioCtx) {
+      //   await this.audioCtx.close();
+      // }
+      // this.audioCtx = null;
       this.gain = null;
       this.mute = true;
       this.sourceBufferAudioWorklet = null;
@@ -256,6 +261,7 @@ export class PersonComponent implements OnInit, OnChanges {
         this.audioSharedBuffer.Clear();
         this.audioSharedBuffer = null;
       }
+
       this.currentVideoSize.width = -1;
       this.currentVideoSize.height = -1;
       this.videoPlayerCtx = null;
@@ -541,16 +547,21 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private async playerInitializeAudioContext(desiredSampleRate: number) {
-    this.audioCtx = await this.audioService.init(desiredSampleRate);
-    this.gain = this.audioCtx.createGain();
-    (this.gain as GainNode).connect(this.audioCtx.destination);
-    this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
-    this.sourceBufferAudioWorklet.onprocessorerror = (event) => {
-      console.error('Audio worklet error. Err: ' + JSON.stringify(event));
-    };
-    this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
-    this.gain!.gain.value = 0;
-    this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000;
+    //this.audioCtx = await this.audioService.init(desiredSampleRate);
+    this.audioCtx = this.audioService.getAudioContext()
+    // await this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
+    if (this.audioCtx !== undefined) {
+      this.gain = this.audioCtx.createGain();
+      (this.gain as GainNode).connect(this.audioCtx.destination);
+      this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
+      this.sourceBufferAudioWorklet.onprocessorerror = (event) => {
+        console.error('Audio worklet error. Err: ' + JSON.stringify(event));
+      };
+      this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
+      this.gain!.gain.value = 0;
+      this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
+    } else {
+      console.log('Audio context is null, this should never happen')
+    }
   }
-
 }

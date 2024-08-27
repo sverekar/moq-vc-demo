@@ -90,6 +90,8 @@ export class AppComponent implements OnInit {
 
   async ngOnInit(): Promise<void>{
 
+    await this.audioService.init(48000)
+
     this.peersList$ = interval(2000).pipe( switchMap(() => this.relayService.getPeersList()));
 
     const self = this;
@@ -196,9 +198,6 @@ export class AppComponent implements OnInit {
 
   async destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
-    if (this.subscriptionList.length === 0) {
-      await this.audioService.close()
-    }
     // if (this.subscriptionList.length === 0 ) {
     //   if (this.animFrame) {
     //     cancelAnimationFrame(this.animFrame)

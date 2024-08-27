@@ -5,25 +5,19 @@ import { Injectable } from '@angular/core';
 })
 export class AudioService {
 
-  private audioCtxMap: Map<number, AudioContext> = new Map();
+  private audioCtx: AudioContext | undefined = undefined;
 
-  async init(desiredSampleRate: number): Promise<AudioContext> {
-    let audioCtx = this.audioCtxMap.get(desiredSampleRate);
-    if (!audioCtx) {
-      audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
-      await audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
-      this.audioCtxMap.set(desiredSampleRate, audioCtx);
-    }
-    return audioCtx
+  async init(desiredSampleRate: number) {
+    this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
+    await this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
   }
 
-  getAudioContext(desiredSampleRate: number): AudioContext | undefined {
-    return this.audioCtxMap.get(desiredSampleRate);
+  getAudioContext(): AudioContext | undefined {
+    return this.audioCtx;
   }
 
   async close() {
-    for (const x of this.audioCtxMap.values()) {
-      await x.close()
-    }
+    await this.audioCtx!.close()
+    this.audioCtx = undefined;
   }
 }
