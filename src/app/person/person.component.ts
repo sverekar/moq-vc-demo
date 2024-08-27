@@ -405,6 +405,7 @@ export class PersonComponent implements OnInit, OnChanges {
     const self =  this;
 
     this.animate = this.animate.bind(this);
+    this.playerInitializeAudioContext = this.playerInitializeAudioContext.bind(this);
 
     this.ngZone.runOutsideAngular(() => {
       self.videoDecoderWorker.addEventListener('message', (e: MessageEvent<any>) => {
@@ -447,7 +448,7 @@ export class PersonComponent implements OnInit, OnChanges {
       const aFrame = e.data.frame;
       // currentAudioTs needs to be compesated with GAPs more info in audio_decoder.js
       const curWCompTs = aFrame.timestamp + e.data.timestampCompensationOffset;
-      if (this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
+      if (this.audioCtx == null && this.sourceBufferAudioWorklet == null && aFrame.sampleRate != undefined && aFrame.sampleRate > 0) {
           // Initialize the audio worklet node when we know sampling freq used in the capture
           await this.playerInitializeAudioContext(aFrame.sampleRate);
       }
@@ -544,17 +545,25 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   private async playerInitializeAudioContext(desiredSampleRate: number) {
-    this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
-    await this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js')
-    if (this.audioCtx !== undefined) {
-      this.gain = this.audioCtx.createGain();
-      (this.gain as GainNode).connect(this.audioCtx.destination);
-      this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
-      this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
-      this.gain!.gain.value = 0;
-      this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
-    } else {
-      console.log('Audio context is null, this should never happen')
-    }
+    console.log('playerInitializeAudioContext')
+    return new Promise((resolve, reject) => {
+      if (this.audioCtx === null) {
+        console.log('creating ctx');
+        this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
+        this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js').then((data: any) => {
+          this.gain = this.audioCtx.createGain();
+          (this.gain as GainNode).connect(this.audioCtx.destination);
+          this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
+          this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
+          this.gain!.gain.value = 0;
+          this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
+          return resolve(null);
+        })
+      } else {
+        console.log('Audio context is null, this should never happen')
+        return resolve(null);
+      }
+    })
+
   }
 }
