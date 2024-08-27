@@ -243,9 +243,11 @@ export class PersonComponent implements OnInit, OnChanges {
       }
       if (this.videoDecoderWorker) {
         this.videoDecoderWorker.postMessage(stopMsg);
+        this.videoDecoderWorker.terminate();
       }
       if (this.audioDecoderWorker) {
         this.audioDecoderWorker.postMessage(stopMsg);
+        this.audioDecoderWorker.terminate();
       }
       this.gain = null;
       this.mute = true;
