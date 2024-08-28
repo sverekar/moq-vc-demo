@@ -58,6 +58,7 @@ function handleChunk (chunk, metadata) {
   if (!itemTsClk.valid) {
     // console.error(WORKER_PREFIX + ` Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${msg.seqId}`);
   }
+  //console.log('Video', {compensatedTs: itemTsClk.compensatedTs, seqId: msg.seqId })
   // send to moq_sender.js
   port.postMessage({ type: "video", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, estimatedDuration: itemTsClk.estimatedDuration, seqId: msg.seqId, chunk: msg.chunk, metadata: msg.metadata });
 
@@ -97,7 +98,6 @@ function mainLoop (frameReader) {
         } else {
           const vFrame = result.value
           if (!onlyVideo) {
-            Atomics.store(arr, 2, BigInt(vFrame.timestamp));
             if (currentVideoTs === undefined) {
               audioOffsetTS = Number(Atomics.load(arr, 1));
               // console.log('audioOffsetTS in video: ', audioOffsetTS)
@@ -123,6 +123,7 @@ function mainLoop (frameReader) {
             }
           }
           currentVideoTs = vFrame.timestamp;
+          Atomics.store(arr, 2, BigInt(vFrame.timestamp));
           // console.log('Adding video Frame: ', {  ts: currentVideoTs, compensatedTs: currentVideoTs + videoOffsetTS, estimatedDuration: estimatedDuration })
           videoTimeChecker.AddItem({ ts: currentVideoTs, compensatedTs: currentVideoTs + videoOffsetTS, estimatedDuration: estimatedDuration, clkms: Date.now()});
           // encode the frame

@@ -65,6 +65,7 @@ function handleChunk (chunk, metadata) {
     // console.warn(WORKER_PREFIX + ` Not found clock time <-> TS for audio frame, this could happen. ts: ${chunk.timestamp}, id:${msg.seqId}`);
   }
   // send to moq_sender.js
+  // console.log('Audio', {compensatedTs: itemTsClk.compensatedTs, seqId: msg.seqId })
   port.postMessage({ type: "audio", firstFrameClkms: itemTsClk.clkms, compensatedTs: itemTsClk.compensatedTs, seqId: msg.seqId, chunk: msg.chunk, metadata: msg.metadata });
 
 }
@@ -101,7 +102,6 @@ function mainLoop (frameReader) {
         } else {
           const aFrame = result.value
           // console.log('Audio Frame: ', aFrame.timestamp)
-          Atomics.store(arr, 0, BigInt(aFrame.timestamp));
           if (currentAudioTs === undefined) {
             videoOffsetTS = Number(Atomics.load(arr, 3));
             // console.log('videoOffsetTS in audio: ', videoOffsetTS)
@@ -119,6 +119,7 @@ function mainLoop (frameReader) {
             estimatedDuration = aFrame.timestamp - currentAudioTs;
           }
           currentAudioTs = aFrame.timestamp;
+          Atomics.store(arr, 0, BigInt(aFrame.timestamp));
           // console.log('Adding audio Frame: ', {  ts: currentAudioTs, compensatedTs: currentAudioTs + audioOffsetTS, estimatedDuration: estimatedDuration })
           audioTimeChecker.AddItem({ ts: currentAudioTs, compensatedTs: currentAudioTs + audioOffsetTS, estimatedDuration: estimatedDuration, clkms: Date.now()});
           if (aEncoder.encodeQueueSize > encoderMaxQueueSize) {

@@ -248,17 +248,27 @@ export class PersonComponent implements OnInit, OnChanges {
         this.audioDecoderWorker.postMessage(stopMsg);
         this.audioDecoderWorker.terminate();
       }
+      if (this.sourceBufferAudioWorklet) {
+        this.sourceBufferAudioWorklet.port.close();
+      }
+      this.sourceBufferAudioWorklet = null;
+
+      if (this.gain) {
+        this.gain.disconnect();
+      }
+
+      this.gain = null;
+
       if (this.audioCtx) {
         await this.audioCtx.close();
       }
       this.audioCtx = null;
-      this.gain = null;
-      this.mute = true;
-      this.sourceBufferAudioWorklet = null;
+
       if (this.audioSharedBuffer) {
         this.audioSharedBuffer.Clear();
-        this.audioSharedBuffer = null;
       }
+      this.audioSharedBuffer = null;
+      this.mute = true;
 
       this.currentVideoSize.width = -1;
       this.currentVideoSize.height = -1;
@@ -269,8 +279,8 @@ export class PersonComponent implements OnInit, OnChanges {
         this.videoRendererBuffer.Clear();
       }
       this.videoRendererBuffer = null;
-      this.destroy.emit(this.namespace + '/' + this.trackName);
       this.videoFramePrinted = false;
+      this.destroy.emit(this.namespace + '/' + this.trackName);
     }
   }
 
@@ -548,13 +558,15 @@ export class PersonComponent implements OnInit, OnChanges {
     return new Promise((resolve, reject) => {
       if (this.audioCtx === null) {
         this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
+        this.gain = this.audioCtx.createGain();
+        (this.gain as GainNode).connect(this.audioCtx.destination);
+        this.gain!.gain.value = 0;
         this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js').then((data: any) => {
-          this.gain = this.audioCtx.createGain();
-          (this.gain as GainNode).connect(this.audioCtx.destination);
           this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
           this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
-          this.gain!.gain.value = 0;
+          // this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
           this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
+          console.info('Audio system latency (ms): ' + this.systemAudioLatencyMs);
           return resolve(null);
         })
       } else {

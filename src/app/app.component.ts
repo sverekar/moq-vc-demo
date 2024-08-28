@@ -84,7 +84,7 @@ export class AppComponent implements OnInit {
     this.videoResolutions.push({width: 1920, height: 1080, fps: 30, level: 40})
     this.videoEncodingOptions = this.videoResolutions[0];
     // @ts-ignore
-    navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
+    navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
   }
 
   async ngOnInit(): Promise<void>{
@@ -110,9 +110,7 @@ export class AppComponent implements OnInit {
     this.wtServerUrl = this.wtServerURLList[0].url;
 
     // @ts-ignore
-    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    // @ts-ignore
-    if (navigator.getUserMedia) {
+    if (navigator.mediaDevices.getUserMedia) {
       from(navigator.mediaDevices
         .enumerateDevices())
         .subscribe({
@@ -147,7 +145,7 @@ export class AppComponent implements OnInit {
               this.modalService.open(NgbdModalConfirm)
             }
             // @ts-ignore
-            navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
+            navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
           }
         });
 
