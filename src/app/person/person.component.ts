@@ -63,6 +63,7 @@ export class PersonComponent implements OnInit, OnChanges {
         bitrate: 1_000_000, // 1 Mbps
         framerate: 30,
         latencyMode: 'realtime', // Sends 1 chunk per frame
+        hardwareAcceleration: 'prefer-hardware'
     },
     encoderMaxQueueSize: 2,
     keyframeEvery: 60,

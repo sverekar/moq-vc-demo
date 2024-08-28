@@ -88,7 +88,7 @@ function processVChunk(e) {
             config.optimizeForLatency = true
             // In my test @2022/11 with hardware accel could NOT get real time decoding,
             // switching to soft decoding fixed everything (h264)
-            config.hardwareAcceleration = 'prefer-software'
+            config.hardwareAcceleration = 'prefer-hardware'
             videoDecoder.configure(config)
 
             workerState = StateEnum.Running
