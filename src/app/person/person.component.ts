@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CicularAudioSharedBuffer, VideoRenderBuffer } from '../common';
+import { AudioService } from '../audio.service';
 
 declare const MediaStreamTrackProcessor: any;
 
@@ -63,7 +64,6 @@ export class PersonComponent implements OnInit, OnChanges {
         bitrate: 1_000_000, // 1 Mbps
         framerate: 30,
         latencyMode: 'realtime', // Sends 1 chunk per frame
-        hardwareAcceleration: 'prefer-hardware'
     },
     encoderMaxQueueSize: 2,
     keyframeEvery: 60,
@@ -129,7 +129,7 @@ export class PersonComponent implements OnInit, OnChanges {
 
   private animFrame: number | null = null;
 
-  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef) {
+  constructor(private ngZone: NgZone, private ref: ChangeDetectorRef, private audioService: AudioService) {
 
   }
 
@@ -260,9 +260,9 @@ export class PersonComponent implements OnInit, OnChanges {
 
       this.gain = null;
 
-      if (this.audioCtx) {
-        await this.audioCtx.close();
-      }
+      // if (this.audioCtx) {
+      //   await this.audioCtx.close();
+      // }
       this.audioCtx = null;
 
       if (this.audioSharedBuffer) {
@@ -555,26 +555,54 @@ export class PersonComponent implements OnInit, OnChanges {
     }
   }
 
+  // private async playerInitializeAudioContext(desiredSampleRate: number) {
+  //   return new Promise((resolve, reject) => {
+  //     if (this.audioCtx === null) {
+  //       this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
+  //       this.gain = this.audioCtx.createGain();
+  //       (this.gain as GainNode).connect(this.audioCtx.destination);
+  //       this.gain!.gain.value = 0;
+  //       this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js').then((data: any) => {
+  //         this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
+  //         this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
+  //         // this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
+  //         this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
+  //         console.info('Audio system latency (ms): ' + this.systemAudioLatencyMs);
+  //         return resolve(null);
+  //       })
+  //     } else {
+  //       console.log('Audio context is null, this should never happen')
+  //       return resolve(null);
+  //     }
+  //   })
+  // }
+
   private async playerInitializeAudioContext(desiredSampleRate: number) {
-    return new Promise((resolve, reject) => {
-      if (this.audioCtx === null) {
-        this.audioCtx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
-        this.gain = this.audioCtx.createGain();
-        (this.gain as GainNode).connect(this.audioCtx.destination);
-        this.gain!.gain.value = 0;
-        this.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js').then((data: any) => {
-          this.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
-          this.sourceBufferAudioWorklet.connect(this.gain as GainNode);
-          // this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
-          this.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
+    const self = this;
+    return new Promise((resolve, reject)=> {
+      if (self.audioCtx === null) {
+        self.audioCtx = self.audioService.getAudioCtx();
+        if (self.audioCtx === null) {
+          const ctx = new AudioContext({ latencyHint: "interactive", sampleRate: desiredSampleRate });
+          console.log('Initialized audio context!!');
+          self.audioService.setAudioCtx(ctx)
+          self.audioCtx = ctx;
+        }
+        self.gain = self.audioCtx.createGain();
+        (self.gain as GainNode).connect(self.audioCtx.destination);
+        self.gain!.gain.value = 0;
+        self.audioCtx.audioWorklet.addModule('../assets/js/render/source_buffer_worklet.js').then((data: any) => {
+        self.sourceBufferAudioWorklet = new AudioWorkletNode(this.audioCtx, 'source-buffer');
+        self.sourceBufferAudioWorklet.connect(this.gain as GainNode);
+        // this.sourceBufferAudioWorklet.connect(this.audioCtx.destination);
+        self.systemAudioLatencyMs = (this.audioCtx.outputLatency + this.audioCtx.baseLatency) * 1000
           console.info('Audio system latency (ms): ' + this.systemAudioLatencyMs);
           return resolve(null);
         })
       } else {
         console.log('Audio context is null, this should never happen')
-        return resolve(null);
+        resolve(null);
       }
-    })
-
+    });
   }
 }
