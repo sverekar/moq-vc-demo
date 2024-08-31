@@ -57,7 +57,7 @@ export class AppComponent implements OnInit {
   readyToPublish: boolean = false;
   isAnnounce: boolean = true;
 
-  onlyVideo: boolean = false;
+  onlyVideo: boolean = true;
 
   peersList$: Observable<Set<string>> | undefined;
 

@@ -8,6 +8,7 @@ LICENSE file in the root directory of this source tree.
 import { StateEnum, deSerializeMetadata } from '../utils/utils.js'
 import { TsQueue } from '../utils/ts_queue.js'
 import { JitterBuffer } from '../utils/jitter_buffer.js'
+import { TimeBufferChecker} from '../utils/time_buffer_checker.js'
 
 const WORKER_PREFIX = '[VIDEO-DECO]'
 
@@ -24,16 +25,19 @@ let discardedBufferFull = 0
 const maxQueuedChunks = MAX_QUEUED_CHUNKS_DEFAULT
 
 
-// Unlike the  audio decoder video decoder tracks timestamps between input - output, so timestamps of RAW frames matches the timestamps of encoded frames
+// Unlike the audio decoder video decoder tracks timestamps between input - output, so timestamps of RAW frames matches the timestamps of encoded frames
 
 const ptsQueue = new TsQueue()
+
+const videoTimeChecker = new TimeBufferChecker("video");
 
 // const wtVideoJitterBuffer = new JitterBuffer(200, (data) =>  console.warn(`[VIDEO-JITTER] Dropped late video frame. seqId: ${data.seqId}, currentSeqId:${data.firstBufferSeqId}`));
 
 const wtVideoJitterBuffer = new JitterBuffer(200);
 
 function processVideoFrame (vFrame) {
-  self.postMessage({ type: 'vframe', frame: vFrame, queueSize: ptsQueue.getPtsQueueLengthInfo().size, queueLengthMs: ptsQueue.getPtsQueueLengthInfo().lengthMs }, [vFrame])
+  const vM =  videoTimeChecker.GetItemByTs(vFrame.timestamp, true);
+  self.postMessage({ type: 'vframe', captureClkms: vM.clkms, frame: vFrame, queueSize: ptsQueue.getPtsQueueLengthInfo().size, queueLengthMs: ptsQueue.getPtsQueueLengthInfo().lengthMs }, [vFrame])
 }
 
 function setWaitForKeyframe (a) {
@@ -49,6 +53,8 @@ function processVChunk(e) {
   const chunk = e.data.chunk;
   const seqId = e.data.seqId;
   const extraData = { captureClkms: e.data.captureClkms, metadata: e.data.metadata }
+  // console.log({ seqId: seqId, compensatedTs: e.data.chunk.timestamp, firstFrameClkms: e.data.captureClkms })
+  videoTimeChecker.AddItem({ ts: e.data.chunk.timestamp, clkms: e.data.captureClkms, compensatedTs: e.data.chunk.timestamp});
   if (wtVideoJitterBuffer != null) {
     const orderedVideoData = wtVideoJitterBuffer.AddItem(chunk, seqId, extraData);
     if (orderedVideoData !== undefined) {

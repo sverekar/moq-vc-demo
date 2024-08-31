@@ -2,7 +2,7 @@ const MAX_ELEMENTS_RENDERER = 60
 
 export class VideoRenderBuffer {
 
-  elementsList: any;
+  elementsList: Array<{ vFrame: VideoFrame, captureClkms: number}>;
   totalDiscarded: any;
   totalLengthMs: any;
   onlyVideo: boolean;
@@ -18,30 +18,24 @@ export class VideoRenderBuffer {
     }
   }
 
-  AddItem (vFrame: any) {
+  AddItem (vFrame: any, captureClkms: number) {
     let r = true
     if (this.elementsList.length < MAX_ELEMENTS_RENDERER) {
       // Add at the end (ordered by timestamp)
-      this.elementsList.push(vFrame)
+      this.elementsList.push({vFrame, captureClkms})
       this.totalLengthMs += vFrame.duration / 1000
     } else {
-      if (this.onlyVideo) {
-        const v = this.elementsList.shift();
-        this.totalLengthMs -= v.duration / 1000;
-        (v as VideoFrame).close()
-        this.elementsList.push(vFrame)
-        this.totalLengthMs += vFrame.duration / 1000;
-      } else {
-        r = false
-      }
+      r = false
     }
     return r
   }
 
   GetFirstElement () {
-    const ret = { vFrame: null, discarded: 0, totalDiscarded: 0, queueSize: this.elementsList.length, queueLengthMs: this.totalLengthMs }
+    const ret = { vFrame: null, discarded: 0, totalDiscarded: 0, queueSize: this.elementsList.length, queueLengthMs: this.totalLengthMs, clkms: null }
     if (this.elementsList.length > 0) {
-      ret.vFrame = this.elementsList.shift()
+      const v = this.elementsList.shift();
+      ret.vFrame = v!.vFrame as any;
+      ret.clkms = v!.captureClkms as any;
       this.totalLengthMs -= (ret.vFrame as any).duration / 1000
       ret.queueSize = this.elementsList.length
       ret.queueLengthMs = this.totalLengthMs
@@ -51,16 +45,16 @@ export class VideoRenderBuffer {
   }
 
   GetItemByTs (ts: any) {
-    const ret = { vFrame: null, discarded: 0, totalDiscarded: this.totalDiscarded, queueSize: this.elementsList.length, queueLengthMs: this.totalLengthMs }
+    const ret = { vFrame: null, discarded: 0, totalDiscarded: this.totalDiscarded, queueSize: this.elementsList.length, queueLengthMs: this.totalLengthMs, clkms: null }
 
-    if (this.elementsList.length <= 0 || ts < this.elementsList[0].timestamp) {
+    if (this.elementsList.length <= 0 || ts < this.elementsList[0].vFrame.timestamp) {
       return ret
     }
 
     let exit = false
     let lastFrameInThePastIndex = 0
     while ((lastFrameInThePastIndex < this.elementsList.length) && (exit === false)) {
-      if (this.elementsList[lastFrameInThePastIndex].timestamp >= ts) {
+      if (this.elementsList[lastFrameInThePastIndex].vFrame.timestamp >= ts) {
         exit = true
       } else {
         lastFrameInThePastIndex++
@@ -69,14 +63,17 @@ export class VideoRenderBuffer {
 
     // Remove items from 0..(lastFrameInThePastIndex-1)
     for (let n = 0; n < (lastFrameInThePastIndex - 1); n++) {
-      const vFrame = this.elementsList.shift()
+      const v = this.elementsList.shift()
+      const vFrame = v!.vFrame as any
       ret.discarded++
       this.totalLengthMs -= vFrame.duration / 1000
       vFrame.close()
     }
 
     if (this.elementsList.length > 0) {
-      ret.vFrame = this.elementsList.shift()
+      const v = this.elementsList.shift()
+      ret.vFrame = v!.vFrame as any;
+      ret.clkms = v!.captureClkms as any;
       this.totalLengthMs -= (ret.vFrame as any).duration / 1000
     }
 
@@ -90,11 +87,12 @@ export class VideoRenderBuffer {
 
   Clear () {
     while (this.elementsList.length > 0) {
-      const vFrame = this.elementsList.shift()
-      vFrame.close()
+      const v = this.elementsList.shift()
+      v!.vFrame.close()
     }
     this.totalLengthMs = 0
     this.totalDiscarded = 0
+    this.elementsList = []
   }
 }
 

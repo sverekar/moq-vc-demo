@@ -29,4 +29,8 @@
 
   <div class="spinner-border spinner" role="status" [hidden]="videoFramePrinted"> </div>
   <canvas [hidden]="!videoFramePrinted" #videoplayer></canvas>
+  <div style="font-size: 10pt; text-align: right;" class="name" [hidden]="!videoFramePrinted">
+    <span> Latency: </span>
+    <span #latencytext></span>
+  </div>
 </div>

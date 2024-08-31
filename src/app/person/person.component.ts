@@ -42,6 +42,7 @@ export class PersonComponent implements OnInit, OnChanges {
   @Output() publish = new EventEmitter<boolean>()
 
   @ViewChild('videoplayer', { static: false }) videoPlayer!: ElementRef;
+  @ViewChild('latencytext', { static: false }) latencyText!: ElementRef;
 
   videoFramePrinted = false;
   mute = true;
@@ -480,7 +481,8 @@ export class PersonComponent implements OnInit, OnChanges {
       }
     } else if (e.data.type === "vframe") {
       const vFrame = e.data.frame;
-      if (this.videoRendererBuffer !== null && this.videoRendererBuffer.AddItem(vFrame) === false) {
+      const clkms = e.data.captureClkms
+      if (this.videoRendererBuffer !== null && this.videoRendererBuffer.AddItem(vFrame, clkms) === false) {
           // console.warn("Dropped video frame because video renderer is full");
           vFrame.close();
       }
@@ -507,6 +509,10 @@ export class PersonComponent implements OnInit, OnChanges {
               this.ref.detectChanges();
             }
             this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+            if (retData.clkms && retData.clkms > 0) {
+              const diff = Date.now() - retData.clkms!
+              this.latencyText.nativeElement.innerText = diff + ' ms';
+            }
             (retData.vFrame as VideoFrame).close();
         }
       } else {
@@ -528,6 +534,10 @@ export class PersonComponent implements OnInit, OnChanges {
                 this.ref.detectChanges();
               }
               this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
+              if (retData.clkms && retData.clkms > 0) {
+                const diff = Date.now() - retData.clkms!
+                this.latencyText.nativeElement.innerText = diff + ' ms';
+              }
               (retData.vFrame as VideoFrame).close();
           }
         }
