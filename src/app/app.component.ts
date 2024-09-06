@@ -89,25 +89,25 @@ export class AppComponent implements OnInit {
 
   async ngOnInit(): Promise<void>{
 
-    // this.peersList$ = interval(2000).pipe( switchMap(() => this.relayService.getPeersList()));
+    this.peersList$ = interval(2000).pipe( switchMap(() => this.relayService.getPeersList()));
 
     const self = this;
 
-    // forkJoin([
-    //   this.relayService.getRelays(),
-    //   this.relayService.getCurrentPosition()
-    // ]).subscribe((res: any) => {
-    //   if (res[0].length > 0) {
-    //     let relays = res[0];
-    //     relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
-    //     this.wtServerURLList = this.getRelays(relays, res[1])
-    //     this.wtServerUrl = this.wtServerURLList[0].url;
-    //   }
-    // });
+    forkJoin([
+      this.relayService.getRelays(),
+      this.relayService.getCurrentPosition()
+    ]).subscribe((res: any) => {
+      if (res[0].length > 0) {
+        let relays = res[0];
+        relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
+        this.wtServerURLList = this.getRelays(relays, res[1])
+        this.wtServerUrl = this.wtServerURLList[0].url;
+      }
+    });
 
     // // For testing relay.
-    this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
-    this.wtServerUrl = this.wtServerURLList[0].url;
+    // this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
+    // this.wtServerUrl = this.wtServerURLList[0].url;
 
     // @ts-ignore
     if (navigator.mediaDevices.getUserMedia) {

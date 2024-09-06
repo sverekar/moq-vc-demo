@@ -496,6 +496,7 @@ export class PersonComponent implements OnInit, OnChanges {
   }
 
   animate(wcTimestamp: number) {
+    let diff = null;
     const wcInterval = wcTimestamp - this.wcLastRender;
     if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
       this.wcLastRender = wcTimestamp;
@@ -508,12 +509,23 @@ export class PersonComponent implements OnInit, OnChanges {
               this.videoFramePrinted = true;
               this.ref.detectChanges();
             }
-            this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
             if (retData.clkms && retData.clkms > 0) {
-              const diff = Date.now() - retData.clkms!
-              this.latencyText.nativeElement.innerText = diff + ' ms';
+              diff = Date.now() - retData.clkms!
             }
+            this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
             (retData.vFrame as VideoFrame).close();
+            if (diff !== null) {
+              if (diff > 1000) {
+                if (diff/1000 > 60) {
+                  diff = (diff/(1000 * 60)) + ' mins'
+                } else {
+                  diff = (diff/1000) + ' s'
+                }
+              } else {
+                diff =  diff + ' ms'
+              }
+              this.latencyText.nativeElement.innerText = diff;
+            }
         }
       } else {
         let data;
@@ -533,12 +545,23 @@ export class PersonComponent implements OnInit, OnChanges {
                 this.videoFramePrinted = true;
                 this.ref.detectChanges();
               }
-              this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
               if (retData.clkms && retData.clkms > 0) {
-                const diff = Date.now() - retData.clkms!
-                this.latencyText.nativeElement.innerText = diff + ' ms';
+                diff = Date.now() - retData.clkms!
               }
+              this.videoPlayerCtx!.drawImage(retData.vFrame, 0, 0, (retData.vFrame as VideoFrame).displayWidth, (retData.vFrame as VideoFrame).displayHeight);
               (retData.vFrame as VideoFrame).close();
+              if (diff !== null) {
+                if (diff > 1000) {
+                  if (diff/1000 > 60) {
+                    diff = (diff/(1000 * 60)) + ' mins'
+                  } else {
+                    diff = (diff/1000) + ' s'
+                  }
+                } else {
+                  diff =  diff + ' ms'
+                }
+                this.latencyText.nativeElement.innerText = diff;
+              }
           }
         }
       }
