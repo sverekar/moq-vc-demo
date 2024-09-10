@@ -1,7 +1,6 @@
 /* You can add global styles to this file, and also import other style files */
 
 /* Importing Bootstrap SCSS file. */
-@import 'bootstrap/scss/bootstrap';
 
 $title-color: #017ac6;
 $base-color: #022857;
@@ -34,6 +33,7 @@ body {
     margin: 0;
     font-size: 1rem;
     font-weight: 400;
+    width: 100%;
     line-height: 1.5;
     padding: 5px;
     color: $base-color;

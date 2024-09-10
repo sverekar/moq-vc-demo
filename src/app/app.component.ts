@@ -1,19 +1,18 @@
 import { CommonModule, Location } from '@angular/common';
-import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterOutlet } from '@angular/router';
-import { NgbActiveModal, NgbModal, NgbModalRef, NgbModule } from '@ng-bootstrap/ng-bootstrap';
-import { from } from 'rxjs';
+import { NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
+import { forkJoin, from, interval, Observable, switchMap } from 'rxjs';
 import { PersonComponent } from './person/person.component';
+import { RelayService } from './relay.service';
+import { cosineDistanceBetweenPoints } from './common';
 
 @Component({
   selector: 'app-root',
   standalone: true,
   imports: [
-    NgbModule,
     FormsModule,
     CommonModule,
-    RouterOutlet,
     PersonComponent
   ],
   templateUrl: './app.component.html',
@@ -21,39 +20,59 @@ import { PersonComponent } from './person/person.component';
 })
 export class AppComponent implements OnInit {
 
-  wtServerUrl: string = "https://localhost:4433";
-  meNamespace: string = crypto.randomUUID();
+  // Announcer common configuration
+  wtServerURLList: Array<{zone: string, url: string}> = [];
+  wtServerUrl: string = '';
+  meNamespace: string = 'Guest' //crypto.randomUUID();
   trackName: string = 'Main';
   peerNamespace: string = '';
-  peerTrackName: string = '';
+  peerTrackName: string = 'Main';
   authInfo: string = 'secret'
   moqVideoQuicMapping: string = 'ObjPerStream';
   moqAudioQuicMapping: string = 'ObjPerStream';
-  fullTrackVideoName: string = this.meNamespace + '/' + this.trackName + '-video'
-  fullTrackAudioName: string = this.meNamespace + '/' + this.trackName + '-audio'
-  subscriptionList : Array<{ displayName: string, audio: string, video: string, self: boolean, videoDeviceId?: string, audioDeviceId?: string }> = [];
 
-  // Advanced configuration
+  // Announcer video encoding configuration
   maxInflightVideoRequests: number  = 39;
   maxInflightAudioRequests: number  = 60;
-
-
-  videoMediaDevices: Array<{deviceId: string, label: string}> = [];
-  videoResolutions: Array<{width: number, height: number, fps: number, level: number}> = []
   videoSources: { deviceId: string, label: string} | undefined;
-  videoEncodingOptions: { width: number; height: number; fps: number; level: number; } | undefined;
+  videoEncodingOptions: { width: number; height: number; fps: number; level: number; };
   videoEncodingKeyFrameEvery: number = 60;
   videoEncodingBitrateBps: number = 500000;
 
-  audioMediaDevices: Array<{deviceId: string, label: string}> = [];
+  // Announcer audio encoding configuration
   audioSources: {deviceId: string, label: string} | undefined;
   audioEncodingBitrateBps: number = 32000;
 
+  // Subscriber player configuration
+  playerBufferMs: number = 100
+  playerMaxBufferMs: number = 200
+  audioJitterBufferMs: number = 200
+  videoJitterBufferMs: number = 100
+
+  subscriptionList : Array<{ id:string, namespace: string, trackName: string, self: boolean}> = [];
+  videoMediaDevices: Array<{deviceId: string, label: string}> = [];
+  videoResolutions: Array<{width: number, height: number, fps: number, level: number}> = [];
+  audioMediaDevices: Array<{deviceId: string, label: string}> = [];
+
   readyToPublish: boolean = false;
+  isAnnounce: boolean = true;
+
+  onlyVideo: boolean = true;
+
+  peersList$: Observable<Set<string>> | undefined;
+
+  // private animFrame: number | undefined = undefined;
+  // private RENDER_VIDEO_EVERY_MS = 10;
+  // private wcLastRender: number = 0;
 
   private modalService = inject(NgbModal);
 
-  constructor(private ref: ChangeDetectorRef, private location: Location) {
+  // Announcer video view
+  @ViewChild('me', { static: true }) me!: PersonComponent;
+
+  @ViewChildren('subsriber') subscribers!: QueryList<PersonComponent>;
+
+  constructor(private ref: ChangeDetectorRef, private location: Location, private ngZone: NgZone, private relayService: RelayService) {
 
     this.videoResolutions.push({width: 320, height: 180, fps: 30, level: 13})
     this.videoResolutions.push({width: 320, height: 180, fps: 15, level: 12})
@@ -61,20 +80,37 @@ export class AppComponent implements OnInit {
     this.videoResolutions.push({width: 854, height: 480, fps: 30, level: 31})
     this.videoResolutions.push({width: 1280, height: 720, fps: 15, level: 31})
     this.videoResolutions.push({width: 1280, height: 720, fps: 30, level: 31})
-    this.videoResolutions.push({width: 1280, height: 720, fps: 30, level: 31})
     this.videoResolutions.push({width: 1920, height: 1080, fps: 15, level: 40})
     this.videoResolutions.push({width: 1920, height: 1080, fps: 30, level: 40})
+    this.videoEncodingOptions = this.videoResolutions[0];
     // @ts-ignore
-    navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
+    navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
   }
 
   async ngOnInit(): Promise<void>{
-    this.videoEncodingOptions = this.videoResolutions[0];
+
+    this.peersList$ = interval(2000).pipe( switchMap(() => this.relayService.getPeersList()));
+
     const self = this;
+
+    forkJoin([
+      this.relayService.getRelays(),
+      this.relayService.getCurrentPosition()
+    ]).subscribe((res: any) => {
+      if (res[0].length > 0) {
+        let relays = res[0];
+        relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
+        this.wtServerURLList = this.getRelays(relays, res[1])
+        this.wtServerUrl = this.wtServerURLList[0].url;
+      }
+    });
+
+    // // For testing relay.
+    // this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
+    // this.wtServerUrl = this.wtServerURLList[0].url;
+
     // @ts-ignore
-    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    // @ts-ignore
-    if (navigator.getUserMedia) {
+    if (navigator.mediaDevices.getUserMedia) {
       from(navigator.mediaDevices
         .enumerateDevices())
         .subscribe({
@@ -109,7 +145,7 @@ export class AppComponent implements OnInit {
               this.modalService.open(NgbdModalConfirm)
             }
             // @ts-ignore
-            navigator.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
+            navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
           }
         });
 
@@ -119,28 +155,93 @@ export class AppComponent implements OnInit {
     }
   }
 
-
   subscribePeer(): void {
+    // if (this.subscriptionList.length === 0) {
+    //   this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
+    // }
+
     this.subscriptionList.push({
-      displayName: this.peerNamespace + '/' + this.peerTrackName,
-      video: this.peerNamespace + '/' + this.peerTrackName + '-video',
-      audio: this.peerNamespace + '/' + this.peerTrackName + '-audio',
+      id: this.peerNamespace + '/' + this.trackName,
+      namespace: this.peerNamespace,
+      trackName: this.trackName,
       self: false
     })
     this.peerNamespace = '';
-    this.peerTrackName = '';
+    this.peerTrackName = 'Main';
   }
 
-  join(): void {
+  async announceOrStop(): Promise<void> {
 
+    // trigger person (me) component to announce the frames to relay
+    if (this.isAnnounce) {
+        this.isAnnounce = false;
+        const ans = await this.me.announce(this.moqVideoQuicMapping, this.moqAudioQuicMapping,
+        this.maxInflightVideoRequests, this.maxInflightAudioRequests, this.videoEncodingKeyFrameEvery, this.videoEncodingBitrateBps,
+        this.audioEncodingBitrateBps);
+        if (!ans) {
+          this.isAnnounce = true;
+        }
+    } else {
+      // Workaround to enable re announce after 1 sec, wait for worker threads to stop.
+      // Run outside of angular scope to avoid performance issue.
+      this.ngZone.runOutsideAngular(() => {
+        this.me.stop();
+        this.isAnnounce = true;
+      })
+    }
   }
 
-  private openPermissionModal() {
-    const modalRef = this.modalService.open(NgbdModalConfirm)
-    modalRef.result.then(() => {
-      console.log('modal closed')
-      location.reload();
-    });
+  async destroySubscriber(id: string) {
+    this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
+    // if (this.subscriptionList.length === 0 ) {
+    //   if (this.animFrame) {
+    //     cancelAnimationFrame(this.animFrame)
+    //   }
+    // }
+  }
+
+  getPersonId(index: number, item: any){
+    return item.id;
+  }
+
+  // handleVideoAnimationPlay(wcTimestamp: number) {
+  //   const wcInterval = wcTimestamp - this.wcLastRender;
+  //   if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
+  //     this.wcLastRender = wcTimestamp;
+  //     for (let i= 0; i < this.subscribers.length; ++i) {
+  //       const c = this.subscribers.get(i);
+  //       if (c) {
+  //         c.animate();
+  //       }
+  //     }
+  //   }
+  //   this.animFrame = requestAnimationFrame(this.handleVideoAnimationPlay.bind(this));
+  // }
+
+  private getRelays(relays: Array<{ url: string, coordinates:Array<number>, zone: string}>, location: {lat: number, lng: number} | undefined): Array<{ zone: string, url: string }> {
+    const resp = [];
+    if (location !== undefined) {
+      let minIndex = -1;
+      let minD = Number.MAX_SAFE_INTEGER
+      for (let i=0; i< relays.length; i++) {
+        const relay = relays[i];
+        const dist = cosineDistanceBetweenPoints(location.lat, location.lng, relay.coordinates[1], relay.coordinates[0]);
+        if (dist < minD) {
+          minD = dist;
+          minIndex = i;
+        }
+        resp[i] = { zone: relay.zone, url: relay.url};
+      }
+      // entry at 0 always points to closest
+      const closest = resp[minIndex];
+      resp[minIndex] = resp[0];
+      resp[0] = closest;
+    } else {
+      relays.forEach((relay: any) => {
+        resp.push({ zone: relay.zone.toUpperCase(), url: relay.url });
+      })
+    }
+    return resp;
   }
 }
 
@@ -161,7 +262,9 @@ export class AppComponent implements OnInit {
 		</div>
 	`,
 })
+
 export class NgbdModalConfirm {
 	modal = inject(NgbActiveModal);
 }
+
 
