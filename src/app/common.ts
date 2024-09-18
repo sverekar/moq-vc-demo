@@ -333,3 +333,88 @@ export function cosineDistanceBetweenPoints(lat1: number, lon1: number, lat2: nu
   const d = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * R;
   return d;
 }
+
+export class MediaStreamTrackProcessor {
+  //@ts-ignore
+  constructor({track}) {
+    if (track.kind == "video") {
+      //@ts-ignore
+      this.readable = new ReadableStream({
+        async start(controller) {
+          //@ts-ignore
+          this.video = document.createElement("video");
+          //@ts-ignore
+          this.video.srcObject = new MediaStream([track]);
+          //@ts-ignore
+          await Promise.all([this.video.play(), new Promise(r => this.video.onloadedmetadata = r)]);
+          //@ts-ignore
+          this.track = track;
+          //@ts-ignore
+          this.canvas = new OffscreenCanvas(this.video.videoWidth, this.video.videoHeight);
+          //@ts-ignore
+          this.ctx = this.canvas.getContext('2d', { desynchronized: true });
+          //@ts-ignore
+          this.t1 = performance.now();
+        },
+        async pull(controller) {
+          //@ts-ignore
+          while (performance.now() - this.t1 < 1000 / track.getSettings().frameRate) {
+            await new Promise(r => requestAnimationFrame(r));
+          }
+          //@ts-ignore
+          this.t1 = performance.now();
+          //@ts-ignore
+          this.ctx.drawImage(this.video, 0, 0);
+          //@ts-ignore
+          controller.enqueue(new VideoFrame(this.canvas, { timestamp: this.t1 * 1000 }));
+        }
+      });
+    } else if (track.kind == "audio") {
+      //@ts-ignore
+      this.readable = new ReadableStream({
+        async start(controller) {
+          //@ts-ignore
+          this.ac = new AudioContext;
+          //@ts-ignore
+          this.buffered = [];
+          function worklet() {
+            //@ts-ignore
+            registerProcessor("mstp-shim", class Processor extends AudioWorkletProcessor {
+              //@ts-ignore
+                process(input) { this.port.postMessage(input); return true; }
+            });
+          }
+          //@ts-ignore
+          await this.ac.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`);
+          //@ts-ignore
+          this.node = new AudioWorkletNode(this.ac, "mstp-shim");
+          //@ts-ignore
+          this.ac.createMediaStreamSource(new MediaStream([track])).connect(this.node);
+          //@ts-ignore
+          this.node.port.addEventListener("message", ({data}) => data[0][0] && this.buffered.push(data));
+        },
+        async pull(controller) {
+          //@ts-ignore
+          while (!this.buffered.length) await new Promise(r => this.node.port.onmessage = r);
+          //@ts-ignore
+          const [channels] = this.buffered.shift();
+          //@ts-ignore
+          const joined = new Float32Array(channels.reduce((a, b) => a + b.length, 0));
+          //@ts-ignore
+          channels.reduce((offset, a) => (joined.set(a, offset), offset + a.length), 0);
+          //@ts-ignore
+          controller.enqueue(new AudioData({
+            format: "f32-planar",
+            //@ts-ignore
+            sampleRate: this.ac.sampleRate,
+            numberOfFrames: channels[0].length,
+            numberOfChannels:  channels.length,
+            //@ts-ignore
+            timestamp: this.ac.currentTime * 1e6 | 0,
+            data: joined
+          }));
+        }
+      });
+    }
+  }
+};

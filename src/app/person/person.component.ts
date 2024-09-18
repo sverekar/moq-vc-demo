@@ -1,9 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
-import { CicularAudioSharedBuffer, VideoRenderBuffer } from '../common';
+import { CicularAudioSharedBuffer, MediaStreamTrackProcessor, VideoRenderBuffer } from '../common';
 import { AudioService } from '../audio.service';
-
-declare const MediaStreamTrackProcessor: any;
 
 @Component({
   selector: 'app-person',
@@ -370,15 +368,32 @@ export class PersonComponent implements OnInit, OnChanges {
     }
 
     const vTrack = mediaStream.getVideoTracks()[0];
-    const vProcessor = new MediaStreamTrackProcessor(vTrack);
-    const vFrameStream = vProcessor.readable;
-
     const aTrack = mediaStream.getAudioTracks()[0];
-    const aProcessor = new MediaStreamTrackProcessor(aTrack);
-    const aFrameStream = aProcessor.readable;
+    let vFrameStream, aFrameStream;
+
+    //@ts-ignore
+    if (self.MediaStreamTrackProcessor) {
+      //@ts-ignore
+      const vProcessor = new self.MediaStreamTrackProcessor(vTrack);
+      vFrameStream = vProcessor.readable;
+      if (!this.onlyVideo) {
+        //@ts-ignore
+        const aProcessor = new self.MediaStreamTrackProcessor(aTrack);
+        aFrameStream = aProcessor.readable;
+      }
+
+    } else {
+      const vProcessor = new MediaStreamTrackProcessor({track: vTrack});
+      //@ts-ignore
+      vFrameStream = vProcessor.readable;
+      if (!this.onlyVideo) {
+        const aProcessor = new MediaStreamTrackProcessor({track: aTrack});
+        //@ts-ignore
+        aFrameStream = aProcessor.readable;
+      }
+    }
 
     const sharedBuffer = new SharedArrayBuffer( 4 * BigInt64Array.BYTES_PER_ELEMENT);
-
     this.vStreamWorker.postMessage({ type: "stream", vStream: vFrameStream, sharedBuffer }, [vFrameStream]);
     if (!this.onlyVideo) {
       this.aStreamWorker.postMessage({ type: "stream", aStream: aFrameStream, sharedBuffer }, [aFrameStream]);

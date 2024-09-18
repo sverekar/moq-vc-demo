@@ -61,10 +61,6 @@ export class AppComponent implements OnInit {
 
   peersList$: Observable<Set<string>> | undefined;
 
-  // private animFrame: number | undefined = undefined;
-  // private RENDER_VIDEO_EVERY_MS = 10;
-  // private wcLastRender: number = 0;
-
   private modalService = inject(NgbModal);
 
   // Announcer video view
@@ -83,8 +79,6 @@ export class AppComponent implements OnInit {
     this.videoResolutions.push({width: 1920, height: 1080, fps: 15, level: 40})
     this.videoResolutions.push({width: 1920, height: 1080, fps: 30, level: 40})
     this.videoEncodingOptions = this.videoResolutions[0];
-    // @ts-ignore
-    navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
   }
 
   async ngOnInit(): Promise<void>{
@@ -93,62 +87,53 @@ export class AppComponent implements OnInit {
 
     const self = this;
 
-    forkJoin([
-      this.relayService.getRelays(),
-      this.relayService.getCurrentPosition()
-    ]).subscribe((res: any) => {
-      if (res[0].length > 0) {
-        let relays = res[0];
-        relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
-        this.wtServerURLList = this.getRelays(relays, res[1])
-        this.wtServerUrl = this.wtServerURLList[0].url;
-      }
-    });
+    // forkJoin([
+    //   this.relayService.getRelays(),
+    //   this.relayService.getCurrentPosition()
+    // ]).subscribe((res: any) => {
+    //   if (res[0].length > 0) {
+    //     let relays = res[0];
+    //     relays = relays.map((x: any) => ({ 'url': 'https://' + x.hostname + ':4433/moq', 'coordinates': x.geo.geometry.coordinates, 'zone': x.zone}));
+    //     this.wtServerURLList = this.getRelays(relays, res[1])
+    //     this.wtServerUrl = this.wtServerURLList[0].url;
+    //   }
+    // });
 
     // // For testing relay.
-    // this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
-    // this.wtServerUrl = this.wtServerURLList[0].url;
+    this.wtServerURLList = [{ url: 'https://moq-akamai-relay.akalab.ca:8843/moq', zone: 'maa'}]
+    this.wtServerUrl = this.wtServerURLList[0].url;
 
-    // @ts-ignore
     if (navigator.mediaDevices.getUserMedia) {
-      from(navigator.mediaDevices
-        .enumerateDevices())
-        .subscribe({
-          next: (devices: MediaDeviceInfo[]) => {
-            for (let z=0; z < devices.length; z++) {
-              const mediaDevice = devices[z];
-              if (mediaDevice.kind === 'videoinput') {
-                if (mediaDevice.deviceId != "") {
-                    self.videoMediaDevices.push({deviceId: mediaDevice.deviceId, label: mediaDevice.label || `Camera ${z++}`})
-                    console.log(`Video input device added: id=${mediaDevice.deviceId}, label=${mediaDevice.label}`);
-                }
-              } else if (mediaDevice.kind === 'audioinput') {
-                if (mediaDevice.deviceId != "") {
-                  self.audioMediaDevices.push({deviceId: mediaDevice.deviceId, label: mediaDevice.label || `Microphone ${z++}`})
-                  console.log(`Audio input device added: id=${mediaDevice.deviceId}, label=${mediaDevice.label}`);
-                }
-              }
+      navigator.mediaDevices.getUserMedia({audio: true, video: true})
+      .then(() => navigator.mediaDevices.enumerateDevices())
+      .then((devices: MediaDeviceInfo[]) => {
+        for (let z=0; z < devices.length; z++) {
+          const mediaDevice = devices[z];
+          if (mediaDevice.kind === 'videoinput') {
+            if (mediaDevice.deviceId != "") {
+                self.videoMediaDevices.push({deviceId: mediaDevice.deviceId, label: mediaDevice.label || `Camera ${z++}`})
+                console.log(`Video input device added: id=${mediaDevice.deviceId}, label=${mediaDevice.label}`);
             }
-            if (self.videoMediaDevices.length > 0) {
-              self.videoSources = self.videoMediaDevices[0];
+          } else if (mediaDevice.kind === 'audioinput') {
+            if (mediaDevice.deviceId != "") {
+              self.audioMediaDevices.push({deviceId: mediaDevice.deviceId, label: mediaDevice.label || `Microphone ${z++}`})
+              console.log(`Audio input device added: id=${mediaDevice.deviceId}, label=${mediaDevice.label}`);
             }
-            if (self.audioMediaDevices.length > 0) {
-              self.audioSources = self.audioMediaDevices[0];
-            }
-          },
-          error: (error: any) => {
-            console.log(error)
-            this.modalService.open(NgbdModalConfirm)
-          },
-          complete: () => {
-            if (self.videoSources == undefined || self.audioSources == undefined) {
-              this.modalService.open(NgbdModalConfirm)
-            }
-            // @ts-ignore
-            navigator.mediaDevices.getUserMedia({audio: true, video: true}, () =>{}, (error: any)=> {console.log(error)})
           }
-        });
-
+        }
+        if (self.videoMediaDevices.length > 0) {
+          self.videoSources = self.videoMediaDevices[0];
+        }
+        if (self.audioMediaDevices.length > 0) {
+          self.audioSources = self.audioMediaDevices[0];
+        }
+        if (self.videoSources == undefined || self.audioSources == undefined) {
+          this.modalService.open(NgbdModalConfirm)
+        }
+      }).catch(error => {
+        console.log(error)
+        this.modalService.open(NgbdModalConfirm)
+      })
     } else {
       console.log('Media devices not supported')
       this.modalService.open(NgbdModalConfirm)
@@ -156,9 +141,6 @@ export class AppComponent implements OnInit {
   }
 
   subscribePeer(): void {
-    // if (this.subscriptionList.length === 0) {
-    //   this.ngZone.runOutsideAngular(() => requestAnimationFrame(this.handleVideoAnimationPlay.bind(this)));
-    // }
 
     this.subscriptionList.push({
       id: this.peerNamespace + '/' + this.trackName,
@@ -193,30 +175,11 @@ export class AppComponent implements OnInit {
 
   async destroySubscriber(id: string) {
     this.subscriptionList = this.subscriptionList.filter(x => x.id !== id);
-    // if (this.subscriptionList.length === 0 ) {
-    //   if (this.animFrame) {
-    //     cancelAnimationFrame(this.animFrame)
-    //   }
-    // }
   }
 
   getPersonId(index: number, item: any){
     return item.id;
   }
-
-  // handleVideoAnimationPlay(wcTimestamp: number) {
-  //   const wcInterval = wcTimestamp - this.wcLastRender;
-  //   if (wcInterval > this.RENDER_VIDEO_EVERY_MS) {
-  //     this.wcLastRender = wcTimestamp;
-  //     for (let i= 0; i < this.subscribers.length; ++i) {
-  //       const c = this.subscribers.get(i);
-  //       if (c) {
-  //         c.animate();
-  //       }
-  //     }
-  //   }
-  //   this.animFrame = requestAnimationFrame(this.handleVideoAnimationPlay.bind(this));
-  // }
 
   private getRelays(relays: Array<{ url: string, coordinates:Array<number>, zone: string}>, location: {lat: number, lng: number} | undefined): Array<{ zone: string, url: string }> {
     const resp = [];

@@ -5,7 +5,7 @@ This source code is licensed under the MIT license found in the
 LICENSE file in the root directory of this source tree.
 */
 
-import { StateEnum, serializeMetadata } from '../utils/utils.js'
+import { StateEnum, serializeMetadata, isMetadataValid } from '../utils/utils.js'
 
 import { TimeBufferChecker} from '../utils/time_buffer_checker.js'
 
@@ -24,6 +24,7 @@ let videoOffsetTS = undefined;
 let audioOffsetTS = undefined;
 let estimatedDuration = -1;
 let arr = null;
+let lastMetadata = null;
 
 let frameDeliveredCounter = 0
 let chunkDeliveredCounter = 0
@@ -50,7 +51,13 @@ const videoTimeChecker = new TimeBufferChecker("video");
 let port = null;
 
 function handleChunk (chunk, metadata) {
-
+  if (chunk.type == 'key') {
+    if (isMetadataValid(metadata)) {
+      lastMetadata = metadata;
+    } else {
+      metadata = lastMetadata;
+    }
+  }
   const msg = { type: 'vchunk', seqId: chunkDeliveredCounter++, chunk, metadata: serializeMetadata(metadata) }
   // console.log('Encoded Video Chunk: ', chunk.timestamp)
   const itemTsClk = videoTimeChecker.GetItemByTs(chunk.timestamp);
@@ -59,7 +66,7 @@ function handleChunk (chunk, metadata) {
     // console.error(WORKER_PREFIX + ` Not found clock time <-> TS for that video frame, this should not happen.  ts: ${chunk.timestamp}, id:${msg.seqId}`);
   }
   const now = Date.now();
-  // console.log({ seqId: msg.seqId, compensatedTs: itemTsClk.compensatedTs, firstFrameClkms: now })
+  // console.log({ seqId: msg.seqId, compensatedTs: itemTsClk.compensatedTs, firstFrameClkms: now, key: chunk.type == 'key', metadata: msg.metadata })
   // send to moq_sender.js
   port.postMessage({ type: "video", firstFrameClkms: now, compensatedTs: itemTsClk.compensatedTs, estimatedDuration: itemTsClk.estimatedDuration, seqId: msg.seqId, chunk: msg.chunk, metadata: msg.metadata });
 
